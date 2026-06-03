@@ -21,10 +21,18 @@ const app = express();
 
 const allowedOrigins = ["http://localhost:5173", "http://localhost:5174", "https://br30marketscanner-com-frontade.vercel.app"];
 
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  if (/^https:\/\/br30marketscanner-com-frontade-[a-z0-9-]+\.vercel\.app$/.test(origin)) return true;
+  if (/^https:\/\/br30marketscanner-com-frontade-[a-z0-9-]+-mukeshkumarsingh7488-afks-projects\.vercel\.app$/.test(origin)) return true;
+  return false;
+};
+
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
-  if (!origin || allowedOrigins.includes(origin)) {
+  if (isAllowedOrigin(origin)) {
     res.header("Access-Control-Allow-Origin", origin || "*");
     res.header("Vary", "Origin");
   }
@@ -43,7 +51,7 @@ app.use((req, res, next) => {
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      if (isAllowedOrigin(origin)) return callback(null, true);
       return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
