@@ -1,132 +1,248 @@
 # BR30 Market Scanner Backend
 
-BR30 Market Scanner is a multi-market live scanner backend built with Node.js, Express, MongoDB and real-time market data APIs.
+🚀 **BR30 Market Scanner Backend** is a powerful multi-market scanning engine built for traders. It provides real-time market analysis, scanner signals, subscription management, payment tracking, admin controls, bulk communication tools, and global market coverage.
 
-## Features
+---
 
-- Live Indian Market Scanner
-  - Equity Stocks
-  - Equity Stock Options
-  - Stock Futures
-  - Stock Future Options
-  - Index Futures
-  - Index Options
+## 🌐 Platform Coverage
 
-- Global Market Scanner
-  - Crypto Futures
-  - Forex Majors
-  - Forex Cross Pairs
-  - Metals: Gold, Silver, Platinum, Palladium
-  - Commodities
-  - Global Indices
-  - US Stocks
-  - US ETFs
+### 🇮🇳 Indian Markets
 
-- Scanner Logic
-  - BUY / SELL signals
-  - Strong BUY / Strong SELL signals
-  - OI build-up detection
-  - Volume breakout detection
-  - Top gainers and top losers
-  - Move percentage filters
-  - Volume ratio filters
-  - Multi-market support
+* Equity Stocks
+* Equity Stock Options
+* Stock Futures
+* Stock Future Options
+* Index Futures
+* Index Options
 
-- Authentication System
-  - User registration
-  - OTP verification
-  - Login with JWT
-  - Forgot password
-  - Reset password
-  - Admin-only access control
+### 🌎 Global Markets
 
-- Subscription System
-  - Free trial support
-  - Active / expired / cancelled subscription status
-  - Trial start and trial end tracking
-  - Subscription start and end tracking
-  - Founding member plan support
-  - AutoPay status tracking
-  - Paytm subscription ID and mandate ID tracking
+* Crypto Futures
+* Forex Majors
+* Forex Cross Pairs
+* Commodities
+* Precious Metals (Gold, Silver, Platinum, Palladium)
+* Global Indices
+* US Stocks
+* US ETFs
 
-- Payment Tracking
-  - Payment order creation
-  - Payment success / failed status tracking
-  - Transaction ID tracking
-  - Payment mode tracking
-  - Payment history for admin dashboard
-  - Revenue calculation from successful payments
+---
 
-- Admin Panel
-  - View all users
-  - Approve / unapprove users
-  - Delete users
-  - Admin-only protected routes
+## 🌟 Core Features
 
-- Admin Dashboard
-  - Total users
-  - Active users
-  - Trial users
-  - Expired users
-  - Blocked users
-  - Total revenue
-  - Payment history
-  - Subscription tracking
-  - Bulk mail system
+### Market Scanner
 
-- Bulk Mail System
-  - Send mail to all users
-  - Trial users
-  - Active users
-  - Active 30+ days users
-  - Active 90+ days users
-  - Expired users
-  - Pending approval users
-  - Founding members
-  - AutoPay users
-  - Blocked users
-  - Top paying users
-  - No payment users
+* Live Scanner Engine
+* Buy Signals
+* Sell Signals
+* OI Spurts Detection
+* Volume Breakout Detection
+* Top Gainers
+* Top Losers
+* TradingView Integration
+* Global Market Support
+* Search Symbol Functionality
+* Heatmap Support
+* Multi-Market Filtering
 
-- Security
-  - JWT authentication
-  - Admin middleware protection
-  - Subscription access middleware
-  - Environment variables protected with `.gitignore`
-  - Upstox token stored securely in environment variables
+### Authentication System
 
-## Tech Stack
+* User Registration
+* OTP Verification
+* Login System
+* JWT Authentication
+* Forgot Password
+* Reset Password
+* Protected Routes
 
-- Node.js
-- Express.js
-- MongoDB
-- Mongoose
-- JWT
-- Bcrypt.js
-- Axios
-- Paytm Subscription API
-- Upstox Market APIs
-- Yahoo Finance API
-- Binance Futures API
-- Brevo / SMTP Email System
+### Subscription System
 
-## Environment Variables
+* Free Trial Access
+* Active Subscription Management
+* Subscription Expiry Tracking
+* AutoPay Tracking
+* Founding Member Plans
+* Subscription Renewal Monitoring
 
-Create a `.env` file in the backend root:
+### Payment System
 
-```env
-PORT=5001
-MONGO_URI=your_mongodb_uri
-JWT_SECRET=your_jwt_secret
-FRONTEND_URL=your_frontend_url
+* Subscription Payments
+* Transaction Tracking
+* Order Tracking
+* Revenue Monitoring
+* Payment History
+* Success / Failed Payment Tracking
 
-UPSTOX_ACCESS_TOKEN=your_upstox_analytics_token
+### Admin Dashboard
 
-PAYTM_MID=your_paytm_mid
-PAYTM_KEY=your_paytm_key
-PAYTM_WEBSITE=your_paytm_website
-PAYTM_CALLBACK_URL=your_callback_url
+* Total Users Analytics
+* Active Users Tracking
+* Trial Users Tracking
+* Expired Users Tracking
+* Blocked Users Tracking
+* Revenue Analytics
+* Subscription Management
+* User Management
+* Payment Monitoring
 
-BREVO_API_KEY=your_brevo_api_key
-MAIL_FROM=your_sender_email
-MASTER_ADMIN_EMAIL=your_admin_email
+### Bulk Mail System
+
+Send emails to:
+
+* All Users
+* Trial Users
+* Active Users
+* Active Users (30+ Days)
+* Active Users (90+ Days)
+* Expired Users
+* Pending Approval Users
+* Founding Members
+* AutoPay Users
+* Blocked Users
+* Top Paying Users
+* No Payment Users
+
+### Security
+
+* JWT Protection
+* Role-Based Access Control
+* Admin Middleware
+* Subscription Middleware
+* Secure Environment Variables
+* Git Ignore Protection
+
+---
+
+## 🛠️ Technology Stack
+
+* Node.js
+* Express.js
+* MongoDB
+* Mongoose
+* JWT
+* Bcrypt.js
+* Axios
+* Brevo SMTP
+* Paytm Subscription APIs
+* Upstox APIs
+* Yahoo Finance APIs
+
+---
+
+## 📁 Project Structure
+
+BR30 Market Scanner Backend
+
+* config/
+* controllers/
+* middleware/
+* models/
+* routes/
+* services/
+* utils/
+* data/
+* server.js
+* package.json
+
+---
+
+## 🔐 Environment Variables
+
+This project requires environment variables for:
+
+* Database Connection
+* JWT Authentication
+* SMTP Email Service
+* Paytm Subscription Services
+* Upstox Market Data APIs
+* Frontend Connection URLs
+
+Environment variables must be configured locally and on the deployment platform before running the application.
+
+⚠️ Never commit `.env` files to GitHub.
+
+---
+
+## 🚀 Installation
+
+```bash
+npm install
+```
+
+---
+
+## ▶️ Start Development Server
+
+```bash
+npm start
+```
+
+or
+
+```bash
+node server.js
+```
+
+---
+
+## 📌 Main Modules
+
+### Authentication
+
+* Registration
+* OTP Verification
+* Login
+* Password Reset
+
+### Scanner Engine
+
+* Indian Markets Scanner
+* Global Markets Scanner
+* OI Scanner
+* Volume Scanner
+* Heatmap Engine
+
+### Subscription System
+
+* Trial Management
+* Active Subscription Monitoring
+* AutoPay Tracking
+
+### Admin Dashboard
+
+* User Management
+* Payment Monitoring
+* Revenue Analytics
+* Bulk Mail Center
+
+---
+
+## 🚀 Deployment
+
+Backend Deployment:
+
+* Render
+
+Frontend Deployment:
+
+* Vercel
+
+---
+
+## 👨‍💻 Developed By
+
+Mukesh Raj
+
+Founder — BR30 Group
+
+---
+
+## 📌 Project Status
+
+Production Ready
+
+Actively maintained and continuously upgraded with new market scanners, analytics tools, subscription management features, admin controls, and trading intelligence systems.
+
+---
+
+### Scan • Analyze • Trade • Grow 🚀
