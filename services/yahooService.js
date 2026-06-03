@@ -3,20 +3,14 @@ const YahooFinance = require("yahoo-finance2").default;
 const yahooFinance = new YahooFinance();
 
 const YAHOO_CACHE = {};
-const CACHE_TTL = 60000;
+const CACHE_TTL = 5 * 60 * 1000;
 
 const FOREX_MAJOR_SYMBOLS = ["EURUSD=X", "GBPUSD=X", "JPY=X", "AUDUSD=X", "NZDUSD=X", "CAD=X", "CHF=X"];
-
 const FOREX_CROSS_SYMBOLS = ["EURJPY=X", "GBPJPY=X", "EURGBP=X", "AUDJPY=X", "CADJPY=X", "CHFJPY=X", "GBPAUD=X", "EURAUD=X", "EURCAD=X", "GBPCAD=X"];
-
 const METAL_SYMBOLS = ["GC=F", "SI=F", "PL=F", "PA=F"];
-
 const COMMODITY_SYMBOLS = ["CL=F", "BZ=F", "NG=F", "HG=F", "ZC=F", "ZS=F", "ZW=F", "KC=F", "CT=F", "SB=F"];
-
 const GLOBAL_INDEX_SYMBOLS = ["^DJI", "^IXIC", "^GSPC", "^RUT", "^VIX", "^FTSE", "^GDAXI", "^FCHI", "^STOXX50E", "^N225", "^HSI", "^AXJO"];
-
 const US_STOCK_SYMBOLS = ["AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "GOOGL", "META", "NFLX", "AMD", "INTC", "COIN", "MSTR", "PLTR", "JPM", "BAC", "V", "MA", "DIS", "BA", "WMT"];
-
 const US_ETF_SYMBOLS = ["SPY", "QQQ", "DIA", "IWM", "VTI", "VOO", "XLK", "XLF", "XLE", "XLY", "XLI", "XLV", "GLD", "SLV", "USO", "TLT", "ARKK", "SOXX", "SMH", "HYG"];
 
 const displayNames = {
@@ -95,13 +89,21 @@ const yahooScore = (changePercent, volume) => {
   return Number((moveScore + volScore).toFixed(2));
 };
 
+const getPrice = (q = {}) => {
+  return Number(q.regularMarketPrice || q.postMarketPrice || q.preMarketPrice || q.bid || q.ask || 0);
+};
+
+const getChangePercent = (q = {}) => {
+  return Number(q.regularMarketChangePercent || q.postMarketChangePercent || q.preMarketChangePercent || 0);
+};
+
 const toRow = (q, market) => {
   if (!q) return null;
 
   const symbol = q.symbol;
-  const ltp = Number(q.regularMarketPrice || q.postMarketPrice || q.preMarketPrice || 0);
-  const changePercent = Number(q.regularMarketChangePercent || 0);
-  const volume = Number(q.regularMarketVolume || 0);
+  const ltp = getPrice(q);
+  const changePercent = getChangePercent(q);
+  const volume = Number(q.regularMarketVolume || q.volume || 0);
 
   if (!symbol || !ltp) return null;
 
@@ -134,28 +136,12 @@ async function getYahooRows(market = "forex") {
     return YAHOO_CACHE[cacheKey].data;
   }
 
+  const symbols = getSymbols(market);
+
   try {
-    const symbols = getSymbols(market);
-
-    const quotes = [];
-
-    for (const symbol of symbols) {
-      try {
-        const q = await yahooFinance.quote(
-          symbol,
-          {
-            fields: ["symbol", "regularMarketPrice", "regularMarketChangePercent", "regularMarketVolume", "postMarketPrice", "preMarketPrice"],
-          },
-          {
-            validateResult: false,
-          }
-        );
-
-        if (q) quotes.push(q);
-      } catch (err) {
-        console.log("YAHOO SYMBOL SKIP =>", symbol, err.message);
-      }
-    }
+    const quotes = await yahooFinance.quote(symbols, {
+      fields: ["symbol", "regularMarketPrice", "regularMarketChangePercent", "regularMarketVolume", "postMarketPrice", "postMarketChangePercent", "preMarketPrice", "preMarketChangePercent", "bid", "ask", "volume"],
+    });
 
     const list = Array.isArray(quotes) ? quotes : [quotes];
 
@@ -164,14 +150,16 @@ async function getYahooRows(market = "forex") {
       .filter(Boolean)
       .sort((a, b) => b.score - a.score);
 
-    YAHOO_CACHE[cacheKey] = {
-      time: Date.now(),
-      data: rows,
-    };
+    if (rows.length) {
+      YAHOO_CACHE[cacheKey] = {
+        time: Date.now(),
+        data: rows,
+      };
+    }
 
-    return rows;
+    return rows.length ? rows : YAHOO_CACHE[cacheKey]?.data || [];
   } catch (error) {
-    console.log("YAHOO SERVICE ERROR =>", error.message);
+    console.log("YAHOO SERVICE ERROR =>", market, error.message);
 
     if (YAHOO_CACHE[cacheKey]?.data?.length) {
       return YAHOO_CACHE[cacheKey].data;
