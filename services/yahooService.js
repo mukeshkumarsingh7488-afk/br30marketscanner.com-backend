@@ -1,42 +1,76 @@
-const axios = require("axios");
+const YahooFinance = require("yahoo-finance2").default;
 
-const STOOQ_BASE_URL = "https://stooq.com/q/l/";
-const STOOQ_CACHE = {};
-const CACHE_TTL = 60 * 1000;
+const yahooFinance = new YahooFinance();
 
-const MARKET_SYMBOLS = {
-  metals: [
-    { stooq: "gc.f", symbol: "XAUUSD", tv: "COMEX:GC1!" },
-    { stooq: "si.f", symbol: "XAGUSD", tv: "COMEX:SI1!" },
-    { stooq: "pl.f", symbol: "XPTUSD", tv: "NYMEX:PL1!" },
-    { stooq: "pa.f", symbol: "XPDUSD", tv: "NYMEX:PA1!" },
-  ],
-  commodities: [
-    { stooq: "cl.f", symbol: "WTI CRUDE", tv: "NYMEX:CL1!" },
-    { stooq: "bz.f", symbol: "BRENT CRUDE", tv: "NYMEX:BRN1!" },
-    { stooq: "ng.f", symbol: "NATURAL GAS", tv: "NYMEX:NG1!" },
-    { stooq: "hg.f", symbol: "COPPER", tv: "COMEX:HG1!" },
-    { stooq: "zc.f", symbol: "CORN", tv: "CBOT:ZC1!" },
-    { stooq: "zs.f", symbol: "SOYBEAN", tv: "CBOT:ZS1!" },
-    { stooq: "zw.f", symbol: "WHEAT", tv: "CBOT:ZW1!" },
-    { stooq: "kc.f", symbol: "COFFEE", tv: "ICEUS:KC1!" },
-    { stooq: "ct.f", symbol: "COTTON", tv: "ICEUS:CT1!" },
-    { stooq: "sb.f", symbol: "SUGAR", tv: "ICEUS:SB1!" },
-  ],
-  "global-index": [
-    { stooq: "^dji", symbol: "US30", tv: "TVC:DJI" },
-    { stooq: "^ndq", symbol: "NAS100", tv: "NASDAQ:NDX" },
-    { stooq: "^spx", symbol: "SPX500", tv: "SP:SPX" },
-    { stooq: "^rut", symbol: "RUSSELL2000", tv: "TVC:RUT" },
-    { stooq: "^vix", symbol: "VIX", tv: "TVC:VIX" },
-    { stooq: "^ukx", symbol: "FTSE100", tv: "TVC:UKX" },
-    { stooq: "^dax", symbol: "DAX40", tv: "XETR:DAX" },
-    { stooq: "^cac", symbol: "CAC40", tv: "EURONEXT:PX1" },
-    { stooq: "^sx5e", symbol: "EUROSTOXX50", tv: "TVC:SX5E" },
-    { stooq: "^nkx", symbol: "NIKKEI225", tv: "TVC:NI225" },
-    { stooq: "^hsi", symbol: "HANGSENG", tv: "TVC:HSI" },
-    { stooq: "^aor", symbol: "ASX200", tv: "ASX:XJO" },
-  ],
+const YAHOO_CACHE = {};
+const CACHE_TTL = 5 * 60 * 1000;
+
+const FOREX_MAJOR_SYMBOLS = ["EURUSD=X", "GBPUSD=X", "JPY=X", "AUDUSD=X", "NZDUSD=X", "CAD=X", "CHF=X"];
+const FOREX_CROSS_SYMBOLS = ["EURJPY=X", "GBPJPY=X", "EURGBP=X", "AUDJPY=X", "CADJPY=X", "CHFJPY=X", "GBPAUD=X", "EURAUD=X", "EURCAD=X", "GBPCAD=X"];
+const METAL_SYMBOLS = ["GC=F", "SI=F", "PL=F", "PA=F"];
+const COMMODITY_SYMBOLS = ["CL=F", "BZ=F", "NG=F", "HG=F", "ZC=F", "ZS=F", "ZW=F", "KC=F", "CT=F", "SB=F"];
+const GLOBAL_INDEX_SYMBOLS = ["^DJI", "^IXIC", "^GSPC", "^RUT", "^VIX", "^FTSE", "^GDAXI", "^FCHI", "^STOXX50E", "^N225", "^HSI", "^AXJO"];
+const US_STOCK_SYMBOLS = ["AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "GOOGL", "META", "NFLX", "AMD", "INTC", "COIN", "MSTR", "PLTR", "JPM", "BAC", "V", "MA", "DIS", "BA", "WMT"];
+const US_ETF_SYMBOLS = ["SPY", "QQQ", "DIA", "IWM", "VTI", "VOO", "XLK", "XLF", "XLE", "XLY", "XLI", "XLV", "GLD", "SLV", "USO", "TLT", "ARKK", "SOXX", "SMH", "HYG"];
+
+const displayNames = {
+  "EURUSD=X": "EURUSD",
+  "GBPUSD=X": "GBPUSD",
+  "JPY=X": "USDJPY",
+  "AUDUSD=X": "AUDUSD",
+  "NZDUSD=X": "NZDUSD",
+  "CAD=X": "USDCAD",
+  "CHF=X": "USDCHF",
+
+  "EURJPY=X": "EURJPY",
+  "GBPJPY=X": "GBPJPY",
+  "EURGBP=X": "EURGBP",
+  "AUDJPY=X": "AUDJPY",
+  "CADJPY=X": "CADJPY",
+  "CHFJPY=X": "CHFJPY",
+  "GBPAUD=X": "GBPAUD",
+  "EURAUD=X": "EURAUD",
+  "EURCAD=X": "EURCAD",
+  "GBPCAD=X": "GBPCAD",
+
+  "GC=F": "XAUUSD",
+  "SI=F": "XAGUSD",
+  "PL=F": "XPTUSD",
+  "PA=F": "XPDUSD",
+
+  "CL=F": "WTI CRUDE",
+  "BZ=F": "BRENT CRUDE",
+  "NG=F": "NATURAL GAS",
+  "HG=F": "COPPER",
+  "ZC=F": "CORN",
+  "ZS=F": "SOYBEAN",
+  "ZW=F": "WHEAT",
+  "KC=F": "COFFEE",
+  "CT=F": "COTTON",
+  "SB=F": "SUGAR",
+
+  "^DJI": "US30",
+  "^IXIC": "NAS100",
+  "^GSPC": "SPX500",
+  "^RUT": "RUSSELL2000",
+  "^VIX": "VIX",
+  "^FTSE": "FTSE100",
+  "^GDAXI": "DAX40",
+  "^FCHI": "CAC40",
+  "^STOXX50E": "EUROSTOXX50",
+  "^N225": "NIKKEI225",
+  "^HSI": "HANGSENG",
+  "^AXJO": "ASX200",
+};
+
+const getSymbols = (market) => {
+  if (market === "forex-cross") return FOREX_CROSS_SYMBOLS;
+  if (market === "metals") return METAL_SYMBOLS;
+  if (market === "commodities") return COMMODITY_SYMBOLS;
+  if (market === "global-index") return GLOBAL_INDEX_SYMBOLS;
+  if (market === "us-stocks") return US_STOCK_SYMBOLS;
+  if (market === "us-etfs") return US_ETF_SYMBOLS;
+  return FOREX_MAJOR_SYMBOLS;
 };
 
 const yahooSignal = (changePercent) => {
@@ -44,7 +78,8 @@ const yahooSignal = (changePercent) => {
   if (changePercent <= -2) return "STRONG SELL";
   if (changePercent >= 1) return "BUY";
   if (changePercent <= -1) return "SELL";
-  if (changePercent >= 0.3 || changePercent <= -0.3) return "Watchlist";
+  if (changePercent >= 0.3) return "Watchlist";
+  if (changePercent <= -0.3) return "Watchlist";
   return "WAIT";
 };
 
@@ -54,41 +89,29 @@ const yahooScore = (changePercent, volume) => {
   return Number((moveScore + volScore).toFixed(2));
 };
 
-const parseCsv = (csv = "") => {
-  const lines = String(csv).trim().split("\n");
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
-  return lines.slice(1).map((line) => {
-    const cols = line.split(",");
-    const obj = {};
-    headers.forEach((h, i) => {
-      obj[h] = cols[i];
-    });
-    return obj;
-  });
+const getPrice = (q = {}) => {
+  return Number(q.regularMarketPrice || q.postMarketPrice || q.preMarketPrice || q.bid || q.ask || 0);
 };
 
-const toNumber = (v) => {
-  const n = Number(
-    String(v || "")
-      .replace("%", "")
-      .replace(",", ".")
-  );
-  return Number.isFinite(n) ? n : 0;
+const getChangePercent = (q = {}) => {
+  return Number(q.regularMarketChangePercent || q.postMarketChangePercent || q.preMarketChangePercent || 0);
 };
 
-const toRow = (q, meta, market) => {
-  const ltp = toNumber(q.close);
-  const changePercent = toNumber(q.perc);
-  const volume = toNumber(q.volume);
+const toRow = (q, market) => {
+  if (!q) return null;
 
-  if (!ltp) return null;
+  const symbol = q.symbol;
+  const ltp = getPrice(q);
+  const changePercent = getChangePercent(q);
+  const volume = Number(q.regularMarketVolume || q.volume || 0);
+
+  if (!symbol || !ltp) return null;
 
   return {
     market,
-    symbol: meta.symbol,
-    tradingSymbol: meta.tv,
-    instrumentKey: meta.stooq,
+    symbol: displayNames[symbol] || symbol,
+    tradingSymbol: symbol,
+    instrumentKey: symbol,
     expiry: null,
     lotSize: 1,
     strike: 0,
@@ -102,64 +125,44 @@ const toRow = (q, meta, market) => {
     volumeRatio: volume > 0 ? 1 : 0,
     signal: yahooSignal(changePercent),
     score: yahooScore(changePercent, volume),
-    source: "stooq",
     updatedAt: new Date().toLocaleTimeString("en-IN"),
   };
 };
 
-async function getYahooRows(market = "global-index") {
-  const cacheKey = `stooq-${market}`;
+async function getYahooRows(market = "forex") {
+  const cacheKey = `yahoo-${market}`;
 
-  if (STOOQ_CACHE[cacheKey] && Date.now() - STOOQ_CACHE[cacheKey].time < CACHE_TTL) {
-    return STOOQ_CACHE[cacheKey].data;
+  if (YAHOO_CACHE[cacheKey] && Date.now() - YAHOO_CACHE[cacheKey].time < CACHE_TTL) {
+    return YAHOO_CACHE[cacheKey].data;
   }
 
-  const symbols = MARKET_SYMBOLS[market];
-
-  if (!symbols) {
-    return [];
-  }
+  const symbols = getSymbols(market);
 
   try {
-    const stooqSymbols = symbols.map((x) => x.stooq).join(",");
-
-    const res = await axios.get(STOOQ_BASE_URL, {
-      timeout: 12000,
-      params: {
-        s: stooqSymbols,
-        f: "sd2t2ohlcvp",
-        h: "",
-        e: "csv",
-      },
-      headers: {
-        "User-Agent": "BR30-Market-Scanner/1.0",
-        Accept: "text/csv,*/*",
-      },
+    const quotes = await yahooFinance.quote(symbols, {
+      fields: ["symbol", "regularMarketPrice", "regularMarketChangePercent", "regularMarketVolume", "postMarketPrice", "postMarketChangePercent", "preMarketPrice", "preMarketChangePercent", "bid", "ask", "volume"],
     });
 
-    const list = parseCsv(res.data);
+    const list = Array.isArray(quotes) ? quotes : [quotes];
 
     const rows = list
-      .map((q) => {
-        const meta = symbols.find((x) => String(x.stooq).toLowerCase() === String(q.symbol || "").toLowerCase());
-        return meta ? toRow(q, meta, market) : null;
-      })
+      .map((q) => toRow(q, market))
       .filter(Boolean)
       .sort((a, b) => b.score - a.score);
 
     if (rows.length) {
-      STOOQ_CACHE[cacheKey] = {
+      YAHOO_CACHE[cacheKey] = {
         time: Date.now(),
         data: rows,
       };
     }
 
-    return rows.length ? rows : STOOQ_CACHE[cacheKey]?.data || [];
+    return rows.length ? rows : YAHOO_CACHE[cacheKey]?.data || [];
   } catch (error) {
-    console.log("STOOQ SERVICE ERROR =>", market, error.message);
+    console.log("YAHOO SERVICE ERROR =>", market, error.message);
 
-    if (STOOQ_CACHE[cacheKey]?.data?.length) {
-      return STOOQ_CACHE[cacheKey].data;
+    if (YAHOO_CACHE[cacheKey]?.data?.length) {
+      return YAHOO_CACHE[cacheKey].data;
     }
 
     return [];
