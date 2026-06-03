@@ -1,9 +1,9 @@
 const axios = require("axios");
 
-const BINANCE_FUTURES_BASE_URL = process.env.BINANCE_FUTURES_BASE_URL || "https://fapi.binance.com";
+const BYBIT_BASE_URL = process.env.BYBIT_BASE_URL || "https://api.bybit.com";
 const COINGECKO_BASE_URL = process.env.COINGECKO_BASE_URL || "https://api.coingecko.com/api/v3";
 
-const CACHE_TTL = 2 * 60 * 1000;
+const CACHE_TTL = 30 * 1000;
 let CRYPTO_CACHE = { time: 0, data: [] };
 
 const CRYPTO_FUTURES_SYMBOLS = [
@@ -106,22 +106,27 @@ const makeRow = ({ symbol, ltp, changePercent, volume, source = "crypto" }) => {
   };
 };
 
-async function getBinanceRows() {
-  const res = await axios.get(`${BINANCE_FUTURES_BASE_URL}/fapi/v1/ticker/24hr`, {
+async function getBybitRows() {
+  const res = await axios.get(`${BYBIT_BASE_URL}/v5/market/tickers`, {
     timeout: 12000,
+    params: { category: "linear" },
+    headers: {
+      accept: "application/json",
+      "user-agent": "BR30-Market-Scanner/1.0",
+    },
   });
 
-  const data = Array.isArray(res.data) ? res.data : [];
+  const list = res.data?.result?.list || [];
 
-  return data
+  return list
     .filter((q) => CRYPTO_FUTURES_SYMBOLS.includes(q.symbol))
     .map((q) =>
       makeRow({
         symbol: q.symbol,
         ltp: Number(q.lastPrice || 0),
-        changePercent: Number(q.priceChangePercent || 0),
-        volume: Number(q.quoteVolume || q.volume || 0),
-        source: "binance",
+        changePercent: Number(q.price24hPcnt || 0) * 100,
+        volume: Number(q.turnover24h || q.volume24h || 0),
+        source: "bybit",
       })
     )
     .filter((r) => r.ltp > 0)
@@ -171,14 +176,14 @@ async function getCryptoFuturesRows() {
   }
 
   try {
-    const rows = await getBinanceRows();
+    const rows = await getBybitRows();
 
     if (rows.length) {
       CRYPTO_CACHE = { time: Date.now(), data: rows };
       return rows;
     }
   } catch (error) {
-    console.log("BINANCE SKIP =>", error.response?.status || "", error.response?.data?.msg || error.message);
+    console.log("BYBIT SKIP =>", error.response?.status || "", error.response?.data?.retMsg || error.message);
   }
 
   try {

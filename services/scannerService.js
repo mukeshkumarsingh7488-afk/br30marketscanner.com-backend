@@ -7,7 +7,7 @@ const { num, signal, score } = require("../utils/marketLogic");
 const SCANNER_CACHE = {};
 const CACHE_TTL = 3000;
 const YAHOO_CACHE_TTL = 60000;
-const CRYPTO_CACHE_TTL = 5000;
+const CRYPTO_CACHE_TTL = 30000;
 
 const INDEX_ORDER = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "NIFTYNXT50", "SENSEX", "BANKEX"];
 const MULTI_ASSET_MARKETS = ["crypto-futures", "forex", "forex-cross", "metals", "commodities", "global-index", "us-stocks", "us-etfs"];
