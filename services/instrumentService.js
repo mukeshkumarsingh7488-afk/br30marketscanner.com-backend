@@ -56,12 +56,6 @@ function isFoSegment(x = {}) {
   return ["NSE_FO", "BSE_FO"].includes(safeUpper(x.segment));
 }
 
-function isExpired(x = {}) {
-  const exp = expiryMs(x.expiry);
-  if (!exp) return false;
-  return exp < Date.now();
-}
-
 function getExchangePrefix(segment = "", symbol = "") {
   const seg = safeUpper(segment);
   const sym = safeUpper(symbol);
@@ -71,30 +65,46 @@ function getExchangePrefix(segment = "", symbol = "") {
   return "NSE";
 }
 
-function makeTradingView(symbol, segment = "") {
-  const clean = safeUpper(symbol).replace(/[^A-Z0-9]/g, "");
-  if (!clean) return { tvSymbol: "", tradingViewUrl: "" };
+function cleanTvSymbol(symbol = "") {
+  return safeUpper(symbol)
+    .replace(/&/g, "_")
+    .replace(/-/g, "_")
+    .replace(/\s+/g, "_")
+    .replace(/[^A-Z0-9_]/g, "")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
 
-  const exchange = getExchangePrefix(segment, clean);
-  const tvSymbol = `${exchange}:${clean}`;
+function cleanTvSearch(symbol = "") {
+  return safeUpper(symbol)
+    .replace(/&/g, " ")
+    .replace(/-/g, " ")
+    .replace(/_/g, " ")
+    .replace(/[^A-Z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildTradingViewLinks(symbol, segment = "") {
+  const clean = cleanTvSymbol(symbol);
+  const search = cleanTvSearch(symbol);
+  const exchange = getExchangePrefix(segment, clean || search);
+  const tvSymbol = clean ? `${exchange}:${clean}` : "";
+  const searchQuery = search || clean || symbol;
 
   return {
     tvSymbol,
-    tradingViewUrl: `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}`,
+    tradingViewUrl: tvSymbol ? `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}` : "",
+    tradingViewSearchUrl: `https://www.tradingview.com/symbols/search/?query=${encodeURIComponent(searchQuery)}&exchange=${encodeURIComponent(exchange)}`,
   };
 }
 
+function makeTradingView(symbol, segment = "") {
+  return buildTradingViewLinks(symbol, segment);
+}
+
 function makeOptionTvSymbol(underlyingSymbol, segment = "") {
-  const clean = safeUpper(underlyingSymbol).replace(/[^A-Z0-9]/g, "");
-  if (!clean) return { tvSymbol: "", tradingViewUrl: "" };
-
-  const exchange = getExchangePrefix(segment, clean);
-  const tvSymbol = `${exchange}:${clean}`;
-
-  return {
-    tvSymbol,
-    tradingViewUrl: `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}`,
-  };
+  return buildTradingViewLinks(underlyingSymbol, segment);
 }
 
 async function loadMaster(force = false) {
