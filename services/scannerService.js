@@ -1,10 +1,11 @@
-const { getFullMarketQuotes } = require("./upstoxService");
+const { getFullMarketQuotes, getIntradayCandles } = require("./upstoxService");
 const { loadInstrumentsByMarket } = require("./instrumentService");
 const { getMarketData, isGlobalMarket, normalizeMarket: normalizeCacheMarket } = require("./marketCache");
 const { num, signal, score } = require("../utils/marketLogic");
 
 const SCANNER_CACHE = {};
 const CACHE_TTL = 3000;
+const EXIT_CHECK_LIMIT = Number(process.env.EXIT_CHECK_LIMIT || 30);
 
 const INDEX_ORDER = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "NIFTYNXT50", "SENSEX", "BANKEX"];
 
@@ -101,7 +102,6 @@ function getQuoteObject(quotes, instrumentKey, tradingSymbol) {
 
 async function getQuotesSafe(keys = []) {
   let finalQuotes = {};
-
   for (const part of chunk(keys, 80)) {
     try {
       const q = await getFullMarketQuotes(part);
@@ -110,7 +110,6 @@ async function getQuotesSafe(keys = []) {
       console.log("UPSTOX QUOTE CHUNK ERROR =>", err.message);
     }
   }
-
   return finalQuotes;
 }
 
@@ -177,6 +176,82 @@ function applyTypeFilter(rows, type) {
   return rows;
 }
 
+function getBaseExitSignal(signalValue = "") {
+  const s = String(signalValue || "").toLowerCase();
+
+  if (s.includes("buy") || s.includes("long") || s.includes("top gainer") || s.includes("short covering")) return "HOLD BUY";
+  if (s.includes("sell") || s.includes("short") || s.includes("top loser") || s.includes("long unwinding")) return "HOLD SELL";
+
+  return "WAIT";
+}
+
+function sma(values = [], length = 8) {
+  if (!Array.isArray(values) || values.length < length) return 0;
+  const last = values.slice(-length);
+  const total = last.reduce((sum, v) => sum + num(v), 0);
+  return Number((total / length).toFixed(2));
+}
+
+async function getSmaExitSignal(row = {}) {
+  const baseExit = getBaseExitSignal(row.signal);
+
+  if (!["HOLD BUY", "HOLD SELL"].includes(baseExit)) return baseExit;
+  if (!row.instrumentKey) return baseExit;
+
+  const candles = await getIntradayCandles(row.instrumentKey, "minutes", 5);
+
+  if (!Array.isArray(candles) || candles.length < 10) return baseExit;
+
+  const closes = candles.map((c) => num(Array.isArray(c) ? c[4] : c.close)).filter((v) => v > 0);
+
+  if (closes.length < 10) return baseExit;
+
+  const chronological = [...closes].reverse();
+
+  const lastClosed1 = chronological[chronological.length - 1];
+  const lastClosed2 = chronological[chronological.length - 2];
+
+  const smaForLast1 = sma(chronological.slice(0, -1), 8);
+  const smaForLast2 = sma(chronological.slice(0, -2), 8);
+
+  if (!smaForLast1 || !smaForLast2) return baseExit;
+
+  if (baseExit === "HOLD BUY" && lastClosed1 < smaForLast1 && lastClosed2 < smaForLast2) return "EXIT BUY";
+  if (baseExit === "HOLD SELL" && lastClosed1 > smaForLast1 && lastClosed2 > smaForLast2) return "EXIT SELL";
+
+  return baseExit;
+}
+
+async function attachExitSignals(rows = [], limit = EXIT_CHECK_LIMIT) {
+  const result = [...rows];
+
+  const candidates = result
+    .map((r, index) => ({ r, index }))
+    .filter(({ r }) => ["HOLD BUY", "HOLD SELL"].includes(getBaseExitSignal(r.signal)))
+    .slice(0, limit);
+
+  const settled = await Promise.allSettled(
+    candidates.map(async ({ r, index }) => ({
+      index,
+      exitSignal: await getSmaExitSignal(r),
+    }))
+  );
+
+  for (const item of settled) {
+    if (item.status === "fulfilled") {
+      result[item.value.index] = {
+        ...result[item.value.index],
+        exitSignal: item.value.exitSignal,
+      };
+    }
+  }
+
+  return result.map((r) => ({
+    ...r,
+    exitSignal: r.exitSignal || getBaseExitSignal(r.signal),
+  }));
+}
+
 function normalizeRows(rows = [], market = "future-stock") {
   return rows
     .filter((r) => num(r.ltp) > 0)
@@ -198,6 +273,7 @@ function normalizeRows(rows = [], market = "future-stock") {
         volume: num(r.volume),
         volumeRatio,
         signal: finalSignal,
+        exitSignal: r.exitSignal || getBaseExitSignal(finalSignal),
         score: finalScore,
         updatedAt: r.updatedAt || safeNow(),
       });
@@ -251,6 +327,7 @@ async function buildScanner(type = "all", market = "future-stock") {
     const move = calcMovePercent(ltp, netChange);
     const oiChangePercent = calcOiChangePercent(oi, oiDayLow);
     const volX = volume > 0 ? 1 : 0;
+    const finalSignal = signal(move, oiChangePercent, volX);
 
     return withTradingView({
       market,
@@ -260,6 +337,7 @@ async function buildScanner(type = "all", market = "future-stock") {
       instrumentKey: stock.instrumentKey,
       tvSymbol: stock.tvSymbol,
       tradingViewUrl: stock.tradingViewUrl,
+      tradingViewSearchUrl: stock.tradingViewSearchUrl,
       expiry: stock.expiry,
       lotSize: stock.lotSize,
       strike: Number(stock.strike || 0),
@@ -271,7 +349,8 @@ async function buildScanner(type = "all", market = "future-stock") {
       oiChangePercent,
       volume,
       volumeRatio: volX,
-      signal: signal(move, oiChangePercent, volX),
+      signal: finalSignal,
+      exitSignal: getBaseExitSignal(finalSignal),
       score: score(move, oiChangePercent, volX),
       updatedAt: safeNow(),
     });
@@ -283,7 +362,9 @@ async function buildScanner(type = "all", market = "future-stock") {
 
   rows = applyTypeFilter(rows, type);
 
-  const result = market === "index-option" ? rows : rows.sort((a, b) => num(b.score) - num(a.score));
+  let result = market === "index-option" ? rows : rows.sort((a, b) => num(b.score) - num(a.score));
+
+  result = await attachExitSignals(result, EXIT_CHECK_LIMIT);
 
   SCANNER_CACHE[cacheKey] = {
     time: Date.now(),

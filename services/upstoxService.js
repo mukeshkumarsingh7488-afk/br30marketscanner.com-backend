@@ -1,14 +1,27 @@
 const axios = require("axios");
-const { BASE_URL, ACCESS_TOKEN } = require("../config/upstoxConfig");
+const { BASE_URL } = require("../config/upstoxConfig");
+
+function getAccessToken() {
+  return process.env.UPSTOX_ACCESS_TOKEN || "";
+}
 
 const api = axios.create({
   baseURL: BASE_URL,
   timeout: 15000,
   headers: {
     Accept: "application/json",
-    Authorization: `Bearer ${ACCESS_TOKEN}`,
     "User-Agent": "BR30-Market-Scanner/1.0",
   },
+});
+
+api.interceptors.request.use((config) => {
+  const token = getAccessToken();
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  return config;
 });
 
 function chunkArray(arr = [], size = 100) {
@@ -45,7 +58,7 @@ async function getQuoteChunk(chunk = []) {
 }
 
 async function getFullMarketQuotes(instrumentKeys = []) {
-  if (!ACCESS_TOKEN) {
+  if (!getAccessToken()) {
     console.log("UPSTOX TOKEN ERROR => UPSTOX_ACCESS_TOKEN missing");
     return {};
   }
@@ -76,6 +89,27 @@ async function getFullMarketQuotes(instrumentKeys = []) {
   return finalData;
 }
 
+async function getIntradayCandles(instrumentKey, unit = "minutes", interval = 5) {
+  if (!getAccessToken()) {
+    console.log("UPSTOX TOKEN ERROR => UPSTOX_ACCESS_TOKEN missing");
+    return [];
+  }
+
+  if (!instrumentKey) return [];
+
+  try {
+    const encodedKey = encodeURIComponent(instrumentKey);
+
+    const res = await api.get(`/historical-candle/intraday/${encodedKey}/${unit}/${interval}`);
+
+    return Array.isArray(res.data?.data?.candles) ? res.data.data.candles : [];
+  } catch (error) {
+    console.log("UPSTOX CANDLE ERROR =>", instrumentKey, getErrorMessage(error));
+    return [];
+  }
+}
+
 module.exports = {
   getFullMarketQuotes,
+  getIntradayCandles,
 };
