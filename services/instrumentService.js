@@ -41,8 +41,55 @@ function safeUpper(value) {
     .toUpperCase();
 }
 
+function cleanTicker(value = "") {
+  return safeUpper(value)
+    .replace(/-EQ$/i, "")
+    .replace(/\s+EQ$/i, "")
+    .replace(/\.EQ$/i, "")
+    .trim();
+}
+
+function looksLikeTicker(value = "") {
+  const v = cleanTicker(value);
+  if (!v) return false;
+  if (v.includes(" ")) return false;
+  if (v.length > 24) return false;
+  return /^[A-Z0-9&_\-]+$/.test(v);
+}
+
+function getRawTradingSymbol(x = {}) {
+  return x.trading_symbol || x.tradingsymbol || x.symbol || "";
+}
+
+function getRawUnderlyingSymbol(x = {}) {
+  return x.asset_symbol || x.underlying_symbol || x.underlyingSymbol || "";
+}
+
 function getSymbol(x = {}) {
-  return safeUpper(x.asset_symbol || x.underlying_symbol || x.name || x.trading_symbol);
+  const segment = safeUpper(x.segment);
+  const type = safeUpper(x.instrument_type);
+
+  const tradingSymbol = cleanTicker(getRawTradingSymbol(x));
+  const underlyingSymbol = cleanTicker(getRawUnderlyingSymbol(x));
+  const name = cleanTicker(x.name);
+
+  if (segment === "NSE_EQ" || segment === "BSE_EQ" || type === "EQ") {
+    if (looksLikeTicker(tradingSymbol)) return tradingSymbol;
+    if (looksLikeTicker(underlyingSymbol)) return underlyingSymbol;
+    return tradingSymbol || underlyingSymbol || name;
+  }
+
+  if (["NSE_FO", "BSE_FO"].includes(segment)) {
+    if (INDEX_SYMBOLS.includes(underlyingSymbol)) return underlyingSymbol;
+    if (looksLikeTicker(underlyingSymbol)) return underlyingSymbol;
+    if (looksLikeTicker(tradingSymbol) && !String(tradingSymbol).match(/\d{2}[A-Z]{3}/)) return tradingSymbol;
+    return underlyingSymbol || tradingSymbol || name;
+  }
+
+  if (looksLikeTicker(tradingSymbol)) return tradingSymbol;
+  if (looksLikeTicker(underlyingSymbol)) return underlyingSymbol;
+
+  return tradingSymbol || underlyingSymbol || name;
 }
 
 function expiryMs(value) {
@@ -90,7 +137,7 @@ function buildTradingViewLinks(symbol, segment = "") {
   const search = cleanTvSearch(symbol);
   const exchange = getExchangePrefix(segment, clean || search);
   const tvSymbol = clean ? `${exchange}:${clean}` : "";
-  const searchQuery = search || clean || symbol;
+  const searchQuery = clean || search || symbol;
 
   return {
     tvSymbol,
@@ -155,7 +202,7 @@ function baseInstrument(item = {}) {
     symbol,
     underlyingSymbol: symbol,
     name: item.name || symbol,
-    tradingSymbol: item.trading_symbol || symbol,
+    tradingSymbol: getRawTradingSymbol(item) || symbol,
     instrumentKey: item.instrument_key,
     expiry: item.expiry || null,
     lotSize: item.lot_size || item.minimum_lot || 1,
@@ -170,13 +217,14 @@ function optionInstrument(item = {}) {
   const underlyingSymbol = getSymbol(item);
   const strike = Number(item.strike_price || 0);
   const optionType = safeUpper(item.instrument_type);
+  const tradingSymbol = getRawTradingSymbol(item) || `${underlyingSymbol}${strike}${optionType}`;
   const tv = makeOptionTvSymbol(underlyingSymbol, item.segment);
 
   return {
     symbol: `${underlyingSymbol} ${strike || ""} ${optionType}`.trim(),
     underlyingSymbol,
     name: item.name || underlyingSymbol,
-    tradingSymbol: item.trading_symbol || `${underlyingSymbol}${strike}${optionType}`,
+    tradingSymbol,
     instrumentKey: item.instrument_key,
     expiry: item.expiry || null,
     lotSize: item.lot_size || item.minimum_lot || 1,
