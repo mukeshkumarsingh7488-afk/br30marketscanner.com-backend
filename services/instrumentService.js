@@ -309,8 +309,9 @@ function getFutureUniverse(data = []) {
   return pickNearestBySymbol(list, FUTURE_INSTRUMENT_LIMIT);
 }
 
-function pickStockOptionsSmart(items = [], baseSymbols = [], strikeRange = STOCK_OPTION_STRIKE_RANGE) {
+function pickStockOptionsSmart(items = [], baseSymbols = []) {
   const finalList = [];
+
   const allowed = new Set(
     baseSymbols
       .map((s) => cleanTicker(s))
@@ -320,58 +321,72 @@ function pickStockOptionsSmart(items = [], baseSymbols = [], strikeRange = STOCK
 
   for (const symbol of allowed) {
     const symbolItems = items.filter((x) => getSymbol(x) === symbol && isCurrentInstrument(x) && x.instrument_key);
+
     if (!symbolItems.length) continue;
 
     const nearest = nearestExpiryItems(symbolItems);
     if (!nearest.length) continue;
 
     const ceRows = nearest.filter((x) => safeUpper(x.instrument_type) === "CE").sort((a, b) => Number(a.strike_price || 0) - Number(b.strike_price || 0));
+
     const peRows = nearest.filter((x) => safeUpper(x.instrument_type) === "PE").sort((a, b) => Number(a.strike_price || 0) - Number(b.strike_price || 0));
+
     const strikes = [...new Set(nearest.map((x) => Number(x.strike_price || 0)).filter(Boolean))].sort((a, b) => a - b);
 
     if (!strikes.length) continue;
 
-    const atmIndex = Math.floor(strikes.length / 2);
-    const selectedStrikes = strikes.slice(Math.max(0, atmIndex - strikeRange), atmIndex + strikeRange + 1);
+    // ATM strike
+    const atmStrike = strikes[Math.floor(strikes.length / 2)];
 
-    for (const strike of selectedStrikes) {
-      const pe = peRows.find((x) => Number(x.strike_price) === strike);
-      const ce = ceRows.find((x) => Number(x.strike_price) === strike);
+    const ce = ceRows.find((x) => Number(x.strike_price) === atmStrike);
 
-      if (pe) finalList.push(optionInstrument(pe));
-      if (ce) finalList.push(optionInstrument(ce));
-    }
+    const pe = peRows.find((x) => Number(x.strike_price) === atmStrike);
+
+    if (ce) finalList.push(optionInstrument(ce));
+    if (pe) finalList.push(optionInstrument(pe));
   }
 
   return finalList;
 }
 
-function pickIndexOptionsSmart(items = [], strikeRange = INDEX_OPTION_STRIKE_RANGE) {
+function pickIndexOptionsSmart(items = []) {
   const finalList = [];
 
   for (const symbol of INDEX_SYMBOLS) {
     const symbolItems = items.filter((x) => getSymbol(x) === symbol && isCurrentInstrument(x) && x.instrument_key);
+
     if (!symbolItems.length) continue;
 
     const nearest = nearestExpiryItems(symbolItems);
     if (!nearest.length) continue;
 
     const ceRows = nearest.filter((x) => safeUpper(x.instrument_type) === "CE").sort((a, b) => Number(a.strike_price || 0) - Number(b.strike_price || 0));
+
     const peRows = nearest.filter((x) => safeUpper(x.instrument_type) === "PE").sort((a, b) => Number(a.strike_price || 0) - Number(b.strike_price || 0));
+
     const strikes = [...new Set(nearest.map((x) => Number(x.strike_price || 0)).filter(Boolean))].sort((a, b) => a - b);
 
-    if (!strikes.length) continue;
+    if (strikes.length < 3) continue;
 
     const atmIndex = Math.floor(strikes.length / 2);
-    const selectedStrikes = strikes.slice(Math.max(0, atmIndex - strikeRange), atmIndex + strikeRange + 1);
 
-    for (const strike of selectedStrikes) {
-      const pe = peRows.find((x) => Number(x.strike_price) === strike);
-      const ce = ceRows.find((x) => Number(x.strike_price) === strike);
+    const atmStrike = strikes[atmIndex];
+    const lowerStrike = strikes[Math.max(0, atmIndex - 1)];
+    const upperStrike = strikes[Math.min(strikes.length - 1, atmIndex + 1)];
 
-      if (pe) finalList.push(optionInstrument(pe));
-      if (ce) finalList.push(optionInstrument(ce));
-    }
+    const ceLower = ceRows.find((x) => Number(x.strike_price) === lowerStrike);
+
+    const ceAtm = ceRows.find((x) => Number(x.strike_price) === atmStrike);
+
+    const peAtm = peRows.find((x) => Number(x.strike_price) === atmStrike);
+
+    const peUpper = peRows.find((x) => Number(x.strike_price) === upperStrike);
+
+    if (ceLower) finalList.push(optionInstrument(ceLower));
+    if (ceAtm) finalList.push(optionInstrument(ceAtm));
+
+    if (peAtm) finalList.push(optionInstrument(peAtm));
+    if (peUpper) finalList.push(optionInstrument(peUpper));
   }
 
   return finalList;
