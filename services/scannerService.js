@@ -6,10 +6,12 @@ const { num, signal, score } = require("../utils/marketLogic");
 const SCANNER_CACHE = {};
 const BASE_SYMBOL_CACHE = {};
 const CACHE_TTL = Number(process.env.SCANNER_CACHE_TTL || 3000);
+const QUOTE_CHUNK_SIZE = Number(process.env.UPSTOX_QUOTE_CHUNK_SIZE || 50);
 
 const EQUITY_ACTIVE_LIMIT = Number(process.env.EQUITY_ACTIVE_LIMIT || 250);
 const FUTURE_ACTIVE_LIMIT = Number(process.env.FUTURE_ACTIVE_LIMIT || 200);
 const OPTION_BASE_SYMBOL_LIMIT = Number(process.env.OPTION_BASE_SYMBOL_LIMIT || 80);
+
 const INDEX_ORDER = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "NIFTYNXT50", "SENSEX", "BANKEX"];
 
 const MARKET_ALIASES = {
@@ -30,7 +32,7 @@ const MARKET_ALIASES = {
   "forex-cross": "forex-cross",
 };
 
-const chunk = (arr, size = 40) => Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
+const chunk = (arr = [], size = 50) => Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
 
 function normalizeMarket(market = "future-stock") {
   const key = String(market || "future-stock")
@@ -106,7 +108,7 @@ function getQuoteObject(quotes, instrumentKey, tradingSymbol) {
 async function getQuotesSafe(keys = []) {
   let finalQuotes = {};
 
-  for (const part of chunk(keys, 80)) {
+  for (const part of chunk(keys, QUOTE_CHUNK_SIZE)) {
     try {
       const q = await getFullMarketQuotes(part);
       finalQuotes = { ...finalQuotes, ...(q || {}) };
