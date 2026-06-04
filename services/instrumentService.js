@@ -7,12 +7,6 @@ const INDEX_SYMBOLS = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "NIFTYNXT
 
 const MASTER_CACHE_TTL = 6 * 60 * 60 * 1000;
 
-const EQUITY_INSTRUMENT_LIMIT = Number(process.env.EQUITY_INSTRUMENT_LIMIT || 700);
-const FUTURE_INSTRUMENT_LIMIT = Number(process.env.FUTURE_INSTRUMENT_LIMIT || 350);
-const STOCK_OPTION_SYMBOL_LIMIT = Number(process.env.STOCK_OPTION_SYMBOL_LIMIT || 80);
-const STOCK_OPTION_STRIKE_RANGE = Number(process.env.STOCK_OPTION_STRIKE_RANGE || 2);
-const INDEX_OPTION_STRIKE_RANGE = Number(process.env.INDEX_OPTION_STRIKE_RANGE || 4);
-
 let cache = {
   loadedAt: null,
   instruments: [],
@@ -47,53 +41,8 @@ function safeUpper(value) {
     .toUpperCase();
 }
 
-function cleanTicker(value = "") {
-  return safeUpper(value)
-    .replace(/-EQ$/i, "")
-    .replace(/\s+EQ$/i, "")
-    .replace(/\.EQ$/i, "")
-    .trim();
-}
-
-function looksLikeTicker(value = "") {
-  const v = cleanTicker(value);
-  if (!v) return false;
-  if (v.includes(" ")) return false;
-  if (v.length > 24) return false;
-  return /^[A-Z0-9&_\-]+$/.test(v);
-}
-
-function getRawTradingSymbol(x = {}) {
-  return x.trading_symbol || x.tradingsymbol || x.symbol || "";
-}
-
-function getRawUnderlyingSymbol(x = {}) {
-  return x.asset_symbol || x.underlying_symbol || x.underlyingSymbol || "";
-}
-
 function getSymbol(x = {}) {
-  const segment = safeUpper(x.segment);
-  const type = safeUpper(x.instrument_type);
-  const tradingSymbol = cleanTicker(getRawTradingSymbol(x));
-  const underlyingSymbol = cleanTicker(getRawUnderlyingSymbol(x));
-  const name = cleanTicker(x.name);
-
-  if (segment === "NSE_EQ" || segment === "BSE_EQ" || type === "EQ") {
-    if (looksLikeTicker(tradingSymbol)) return tradingSymbol;
-    if (looksLikeTicker(underlyingSymbol)) return underlyingSymbol;
-    return tradingSymbol || underlyingSymbol || name;
-  }
-
-  if (["NSE_FO", "BSE_FO"].includes(segment)) {
-    if (INDEX_SYMBOLS.includes(underlyingSymbol)) return underlyingSymbol;
-    if (looksLikeTicker(underlyingSymbol)) return underlyingSymbol;
-    if (looksLikeTicker(tradingSymbol) && !/\d{2}[A-Z]{3}/.test(tradingSymbol)) return tradingSymbol;
-    return underlyingSymbol || tradingSymbol || name;
-  }
-
-  if (looksLikeTicker(tradingSymbol)) return tradingSymbol;
-  if (looksLikeTicker(underlyingSymbol)) return underlyingSymbol;
-  return tradingSymbol || underlyingSymbol || name;
+  return safeUpper(x.asset_symbol || x.underlying_symbol || x.name || x.trading_symbol);
 }
 
 function expiryMs(value) {
@@ -101,12 +50,6 @@ function expiryMs(value) {
   if (typeof value === "number") return value;
   const ms = new Date(value).getTime();
   return Number.isFinite(ms) ? ms : 0;
-}
-
-function isCurrentInstrument(x = {}) {
-  const exp = expiryMs(x.expiry);
-  if (!exp) return true;
-  return exp >= Date.now();
 }
 
 function isFoSegment(x = {}) {
@@ -147,7 +90,7 @@ function buildTradingViewLinks(symbol, segment = "") {
   const search = cleanTvSearch(symbol);
   const exchange = getExchangePrefix(segment, clean || search);
   const tvSymbol = clean ? `${exchange}:${clean}` : "";
-  const searchQuery = clean || search || symbol;
+  const searchQuery = search || clean || symbol;
 
   return {
     tvSymbol,
@@ -212,7 +155,7 @@ function baseInstrument(item = {}) {
     symbol,
     underlyingSymbol: symbol,
     name: item.name || symbol,
-    tradingSymbol: getRawTradingSymbol(item) || symbol,
+    tradingSymbol: item.trading_symbol || symbol,
     instrumentKey: item.instrument_key,
     expiry: item.expiry || null,
     lotSize: item.lot_size || item.minimum_lot || 1,
@@ -227,14 +170,13 @@ function optionInstrument(item = {}) {
   const underlyingSymbol = getSymbol(item);
   const strike = Number(item.strike_price || 0);
   const optionType = safeUpper(item.instrument_type);
-  const tradingSymbol = getRawTradingSymbol(item) || `${underlyingSymbol}${strike}${optionType}`;
   const tv = makeOptionTvSymbol(underlyingSymbol, item.segment);
 
   return {
     symbol: `${underlyingSymbol} ${strike || ""} ${optionType}`.trim(),
     underlyingSymbol,
     name: item.name || underlyingSymbol,
-    tradingSymbol,
+    tradingSymbol: item.trading_symbol || `${underlyingSymbol}${strike}${optionType}`,
     instrumentKey: item.instrument_key,
     expiry: item.expiry || null,
     lotSize: item.lot_size || item.minimum_lot || 1,
@@ -247,32 +189,12 @@ function optionInstrument(item = {}) {
   };
 }
 
-function sortSymbols(a, b) {
-  const ia = INDEX_SYMBOLS.indexOf(a.symbol);
-  const ib = INDEX_SYMBOLS.indexOf(b.symbol);
-
-  if (ia !== -1 || ib !== -1) {
-    if (ia === -1) return 1;
-    if (ib === -1) return -1;
-    return ia - ib;
-  }
-
-  return String(a.symbol).localeCompare(String(b.symbol));
-}
-
-function nearestExpiryItems(items = []) {
-  const valid = items.filter((x) => x.instrument_key && isCurrentInstrument(x)).sort((a, b) => expiryMs(a.expiry) - expiryMs(b.expiry));
-  if (!valid.length) return [];
-  const nearest = expiryMs(valid[0].expiry);
-  return valid.filter((x) => expiryMs(x.expiry) === nearest);
-}
-
-function pickNearestBySymbol(items = [], limit = 9999) {
+function pickNearestBySymbol(items = []) {
   const grouped = new Map();
 
   for (const item of items) {
     const symbol = getSymbol(item);
-    if (!symbol || !item.instrument_key || !isCurrentInstrument(item)) continue;
+    if (!symbol || !item.instrument_key) continue;
 
     const exp = expiryMs(item.expiry);
     const old = grouped.get(symbol);
@@ -287,135 +209,82 @@ function pickNearestBySymbol(items = [], limit = 9999) {
 
   return Array.from(grouped.values())
     .map(({ expiryMs, ...rest }) => rest)
-    .sort(sortSymbols)
-    .slice(0, limit);
+    .sort((a, b) => {
+      const ia = INDEX_SYMBOLS.indexOf(a.symbol);
+      const ib = INDEX_SYMBOLS.indexOf(b.symbol);
+
+      if (ia !== -1 || ib !== -1) {
+        if (ia === -1) return 1;
+        if (ib === -1) return -1;
+        return ia - ib;
+      }
+
+      return String(a.symbol).localeCompare(String(b.symbol));
+    });
 }
 
-function getEquityUniverse(data = []) {
-  return data
-    .filter((x) => safeUpper(x.segment) === "NSE_EQ" && safeUpper(x.instrument_type) === "EQ" && x.instrument_key)
-    .map(baseInstrument)
-    .filter((x) => looksLikeTicker(x.symbol))
-    .sort((a, b) => String(a.symbol).localeCompare(String(b.symbol)))
-    .slice(0, EQUITY_INSTRUMENT_LIMIT);
-}
-
-function getFutureUniverse(data = []) {
-  const list = data.filter((x) => {
-    const symbol = getSymbol(x);
-    return safeUpper(x.segment) === "NSE_FO" && safeUpper(x.instrument_type).includes("FUT") && isCurrentInstrument(x) && !INDEX_SYMBOLS.includes(symbol) && x.instrument_key;
-  });
-
-  return pickNearestBySymbol(list, FUTURE_INSTRUMENT_LIMIT);
-}
-
-function pickStockOptionsSmart(items = [], baseSymbols = []) {
-  const finalList = [];
-
-  const allowed = new Set(
-    baseSymbols
-      .map((s) => cleanTicker(s))
-      .filter(Boolean)
-      .slice(0, STOCK_OPTION_SYMBOL_LIMIT)
-  );
-
-  for (const symbol of allowed) {
-    const symbolItems = items.filter((x) => getSymbol(x) === symbol && isCurrentInstrument(x) && x.instrument_key);
-
-    if (!symbolItems.length) continue;
-
-    const nearest = nearestExpiryItems(symbolItems);
-    if (!nearest.length) continue;
-
-    const ceRows = nearest.filter((x) => safeUpper(x.instrument_type) === "CE").sort((a, b) => Number(a.strike_price || 0) - Number(b.strike_price || 0));
-
-    const peRows = nearest.filter((x) => safeUpper(x.instrument_type) === "PE").sort((a, b) => Number(a.strike_price || 0) - Number(b.strike_price || 0));
-
-    const strikes = [...new Set(nearest.map((x) => Number(x.strike_price || 0)).filter(Boolean))].sort((a, b) => a - b);
-
-    if (!strikes.length) continue;
-
-    // ATM strike
-    const atmStrike = strikes[Math.floor(strikes.length / 2)];
-
-    const ce = ceRows.find((x) => Number(x.strike_price) === atmStrike);
-
-    const pe = peRows.find((x) => Number(x.strike_price) === atmStrike);
-
-    if (ce) finalList.push(optionInstrument(ce));
-    if (pe) finalList.push(optionInstrument(pe));
-  }
-
-  return finalList;
-}
-
-function pickIndexOptionsSmart(items = []) {
+function pickNearestOptionsByIndex(items = [], perIndexLimit = 500) {
   const finalList = [];
 
   for (const symbol of INDEX_SYMBOLS) {
-    const symbolItems = items.filter((x) => getSymbol(x) === symbol && isCurrentInstrument(x) && x.instrument_key);
+    const arr = items.filter((x) => getSymbol(x) === symbol);
+    if (!arr.length) continue;
 
-    if (!symbolItems.length) continue;
+    arr.sort((a, b) => expiryMs(a.expiry) - expiryMs(b.expiry));
 
-    const nearest = nearestExpiryItems(symbolItems);
-    if (!nearest.length) continue;
+    const nearestExpiry = expiryMs(arr[0].expiry);
 
-    const ceRows = nearest.filter((x) => safeUpper(x.instrument_type) === "CE").sort((a, b) => Number(a.strike_price || 0) - Number(b.strike_price || 0));
+    const nearest = arr
+      .filter((x) => expiryMs(x.expiry) === nearestExpiry)
+      .sort((a, b) => Number(a.strike_price || 0) - Number(b.strike_price || 0))
+      .slice(0, perIndexLimit);
 
-    const peRows = nearest.filter((x) => safeUpper(x.instrument_type) === "PE").sort((a, b) => Number(a.strike_price || 0) - Number(b.strike_price || 0));
-
-    const strikes = [...new Set(nearest.map((x) => Number(x.strike_price || 0)).filter(Boolean))].sort((a, b) => a - b);
-
-    if (strikes.length < 3) continue;
-
-    const atmIndex = Math.floor(strikes.length / 2);
-
-    const atmStrike = strikes[atmIndex];
-    const lowerStrike = strikes[Math.max(0, atmIndex - 1)];
-    const upperStrike = strikes[Math.min(strikes.length - 1, atmIndex + 1)];
-
-    const ceLower = ceRows.find((x) => Number(x.strike_price) === lowerStrike);
-
-    const ceAtm = ceRows.find((x) => Number(x.strike_price) === atmStrike);
-
-    const peAtm = peRows.find((x) => Number(x.strike_price) === atmStrike);
-
-    const peUpper = peRows.find((x) => Number(x.strike_price) === upperStrike);
-
-    if (ceLower) finalList.push(optionInstrument(ceLower));
-    if (ceAtm) finalList.push(optionInstrument(ceAtm));
-
-    if (peAtm) finalList.push(optionInstrument(peAtm));
-    if (peUpper) finalList.push(optionInstrument(peUpper));
+    finalList.push(...nearest);
   }
 
   return finalList;
 }
 
-async function loadInstrumentsByMarket(market = "future-stock", force = false, options = {}) {
+function pickNearestStockOptions(items = [], limit = 500) {
+  return items
+    .filter((x) => x.instrument_key)
+    .sort((a, b) => expiryMs(a.expiry) - expiryMs(b.expiry) || getSymbol(a).localeCompare(getSymbol(b)) || Number(a.strike_price || 0) - Number(b.strike_price || 0))
+    .slice(0, limit);
+}
+
+async function loadInstrumentsByMarket(market = "future-stock", force = false) {
   market = normalizeMarket(market);
 
   const data = await loadMaster(force);
+  const now = Date.now();
 
   if (!Array.isArray(data) || !data.length) {
     return [];
   }
 
-  if (market === "equity-stock") {
-    return getEquityUniverse(data);
-  }
-
   if (market === "future-stock") {
-    return getFutureUniverse(data);
+    const list = data.filter((x) => {
+      const symbol = getSymbol(x);
+      return safeUpper(x.segment) === "NSE_FO" && safeUpper(x.instrument_type).includes("FUT") && expiryMs(x.expiry) >= now && !INDEX_SYMBOLS.includes(symbol) && x.instrument_key;
+    });
+
+    return pickNearestBySymbol(list);
   }
 
   if (market === "index-future") {
     const list = data.filter((x) => {
       const symbol = getSymbol(x);
-      return isFoSegment(x) && safeUpper(x.instrument_type).includes("FUT") && isCurrentInstrument(x) && INDEX_SYMBOLS.includes(symbol) && x.instrument_key;
+      return isFoSegment(x) && safeUpper(x.instrument_type).includes("FUT") && expiryMs(x.expiry) >= now && INDEX_SYMBOLS.includes(symbol) && x.instrument_key;
     });
 
-    return pickNearestBySymbol(list, INDEX_SYMBOLS.length);
+    return pickNearestBySymbol(list);
+  }
+
+  if (market === "equity-stock") {
+    return data
+      .filter((x) => safeUpper(x.segment) === "NSE_EQ" && safeUpper(x.instrument_type) === "EQ" && x.instrument_key)
+      .slice(0, 500)
+      .map(baseInstrument);
   }
 
   if (market === "index-option") {
@@ -423,49 +292,24 @@ async function loadInstrumentsByMarket(market = "future-stock", force = false, o
       const symbol = getSymbol(x);
       const type = safeUpper(x.instrument_type);
 
-      return isFoSegment(x) && ["CE", "PE"].includes(type) && isCurrentInstrument(x) && INDEX_SYMBOLS.includes(symbol) && x.instrument_key;
+      return isFoSegment(x) && ["CE", "PE"].includes(type) && expiryMs(x.expiry) >= now && INDEX_SYMBOLS.includes(symbol) && x.instrument_key;
     });
 
-    return pickIndexOptionsSmart(list, INDEX_OPTION_STRIKE_RANGE);
+    return pickNearestOptionsByIndex(list, 500).map(optionInstrument);
   }
 
-  if (market === "equity-stock-option") {
-    const baseSymbols =
-      Array.isArray(options.baseSymbols) && options.baseSymbols.length
-        ? options.baseSymbols
-        : getEquityUniverse(data)
-            .slice(0, STOCK_OPTION_SYMBOL_LIMIT)
-            .map((x) => x.symbol);
-
+  if (market === "equity-stock-option" || market === "future-stock-option") {
     const list = data.filter((x) => {
       const symbol = getSymbol(x);
       const type = safeUpper(x.instrument_type);
 
-      return safeUpper(x.segment) === "NSE_FO" && ["CE", "PE"].includes(type) && isCurrentInstrument(x) && !INDEX_SYMBOLS.includes(symbol) && baseSymbols.includes(symbol) && x.instrument_key;
+      return safeUpper(x.segment) === "NSE_FO" && ["CE", "PE"].includes(type) && expiryMs(x.expiry) >= now && !INDEX_SYMBOLS.includes(symbol) && x.instrument_key;
     });
 
-    return pickStockOptionsSmart(list, baseSymbols, STOCK_OPTION_STRIKE_RANGE);
+    return pickNearestStockOptions(list, 500).map(optionInstrument);
   }
 
-  if (market === "future-stock-option") {
-    const baseSymbols =
-      Array.isArray(options.baseSymbols) && options.baseSymbols.length
-        ? options.baseSymbols
-        : getFutureUniverse(data)
-            .slice(0, STOCK_OPTION_SYMBOL_LIMIT)
-            .map((x) => x.symbol);
-
-    const list = data.filter((x) => {
-      const symbol = getSymbol(x);
-      const type = safeUpper(x.instrument_type);
-
-      return safeUpper(x.segment) === "NSE_FO" && ["CE", "PE"].includes(type) && isCurrentInstrument(x) && !INDEX_SYMBOLS.includes(symbol) && baseSymbols.includes(symbol) && x.instrument_key;
-    });
-
-    return pickStockOptionsSmart(list, baseSymbols, STOCK_OPTION_STRIKE_RANGE);
-  }
-
-  return getFutureUniverse(data);
+  return loadInstrumentsByMarket("future-stock", force);
 }
 
 module.exports = {
