@@ -1,6 +1,9 @@
 const YahooFinance = require("yahoo-finance2").default;
 const yahooFinance = new YahooFinance();
-yahooFinance.suppressNotices(["yahooSurvey"]);
+
+if (typeof yahooFinance.suppressNotices === "function") {
+  yahooFinance.suppressNotices(["yahooSurvey"]);
+}
 const YAHOO_CACHE = {};
 const CACHE_TTL = 60 * 1000;
 const STALE_TTL = 30 * 60 * 1000;
