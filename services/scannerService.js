@@ -4,7 +4,9 @@ const { getMarketData, isGlobalMarket, normalizeMarket: normalizeCacheMarket } =
 const { num, signal, score } = require("../utils/marketLogic");
 
 const SCANNER_CACHE = {};
-const CACHE_TTL = 3000;
+const CACHE_TTL = Number(process.env.SCANNER_CACHE_TTL || 3000);
+const QUOTE_CHUNK_SIZE = Number(process.env.UPSTOX_QUOTE_CHUNK_SIZE || 50);
+const EQUITY_MIN_VOLUME = Number(process.env.EQUITY_MIN_VOLUME || 2000000);
 
 const INDEX_ORDER = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "NIFTYNXT50", "SENSEX", "BANKEX"];
 
@@ -26,7 +28,7 @@ const MARKET_ALIASES = {
   "forex-cross": "forex-cross",
 };
 
-const chunk = (arr, size = 40) => Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
+const chunk = (arr = [], size = 50) => Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
 
 function normalizeMarket(market = "future-stock") {
   const key = String(market || "future-stock")
@@ -48,27 +50,12 @@ function safeTradingViewSymbol(row = {}) {
     .toUpperCase();
 
   if (!symbol) return "";
-
   if (market === "crypto-futures") return `BYBIT:${symbol}.P`;
   if (market === "forex-majors" || market === "forex-cross") return `FX:${symbol}`;
-
-  if (market === "metals") {
-    if (symbol.includes("XAU")) return "OANDA:XAUUSD";
-    if (symbol.includes("XAG")) return "OANDA:XAGUSD";
-    if (symbol.includes("XPT")) return "OANDA:XPTUSD";
-    if (symbol.includes("XPD")) return "OANDA:XPDUSD";
-    return `OANDA:${symbol}`;
-  }
-
   if (market === "us-stocks") return row.exchange ? `${row.exchange}:${symbol}` : `NASDAQ:${symbol}`;
   if (market === "us-etfs") return row.exchange ? `${row.exchange}:${symbol}` : `AMEX:${symbol}`;
-
-  if (market === "index-option" || market === "future-stock" || market === "equity-stock" || market === "index-future") {
-    if (["SENSEX", "BANKEX"].includes(symbol)) return `BSE:${symbol}`;
-    return `NSE:${symbol}`;
-  }
-
-  return symbol;
+  if (["SENSEX", "BANKEX"].includes(symbol)) return `BSE:${symbol}`;
+  return `NSE:${symbol}`;
 }
 
 function withTradingView(row = {}) {
@@ -102,7 +89,7 @@ function getQuoteObject(quotes, instrumentKey, tradingSymbol) {
 async function getQuotesSafe(keys = []) {
   let finalQuotes = {};
 
-  for (const part of chunk(keys, 80)) {
+  for (const part of chunk(keys, QUOTE_CHUNK_SIZE)) {
     try {
       const q = await getFullMarketQuotes(part);
       finalQuotes = { ...finalQuotes, ...(q || {}) };
@@ -114,42 +101,59 @@ async function getQuotesSafe(keys = []) {
   return finalQuotes;
 }
 
-function filterIndexOptionATM(rows) {
-  const finalRows = [];
-
-  for (const index of INDEX_ORDER) {
-    const indexRows = rows.filter((r) => r.underlyingSymbol === index);
-    if (!indexRows.length) continue;
-
-    const strikes = [...new Set(indexRows.map((r) => Number(r.strike || 0)).filter(Boolean))].sort((a, b) => a - b);
-    const ceRows = indexRows.filter((r) => String(r.optionType).toUpperCase() === "CE");
-    const peRows = indexRows.filter((r) => String(r.optionType).toUpperCase() === "PE");
-
-    let atmStrike = strikes[Math.floor(strikes.length / 2)];
-
-    const pairDiff = strikes
-      .map((strike) => {
-        const ce = ceRows.find((r) => Number(r.strike) === strike);
-        const pe = peRows.find((r) => Number(r.strike) === strike);
-        return { strike, diff: ce && pe ? Math.abs(Number(ce.ltp || 0) - Number(pe.ltp || 0)) : Infinity };
-      })
-      .sort((a, b) => a.diff - b.diff);
-
-    if (pairDiff[0] && pairDiff[0].diff !== Infinity) atmStrike = pairDiff[0].strike;
-
-    const lower = strikes.filter((s) => s < atmStrike).slice(-9);
-    const upper = strikes.filter((s) => s > atmStrike).slice(0, 10);
-    const selectedStrikes = [...lower, atmStrike, ...upper].slice(0, 20);
-
-    for (const strike of selectedStrikes) {
-      const pe = peRows.find((r) => Number(r.strike) === strike);
-      const ce = ceRows.find((r) => Number(r.strike) === strike);
-      if (pe) finalRows.push(pe);
-      if (ce) finalRows.push(ce);
-    }
+function getScannerSignal(market, move, oiChangePercent, volumeRatio, volume) {
+  if (market === "equity-stock") {
+    if (move >= 2 && volume >= EQUITY_MIN_VOLUME) return "BUY";
+    if (move <= -2 && volume >= EQUITY_MIN_VOLUME) return "SELL";
+    if (move > 0) return "Top Gainer";
+    if (move < 0) return "Top Loser";
+    return "WAIT";
   }
 
-  return finalRows;
+  const s = signal(move, oiChangePercent, volumeRatio);
+  const sl = String(s || "").toLowerCase();
+
+  if (sl.includes("top gainer")) return "Top Gainer";
+  if (sl.includes("top loser")) return "Top Loser";
+
+  return s || "WAIT";
+}
+
+function getScannerScore(market, move, oiChangePercent, volumeRatio, volume) {
+  if (market === "equity-stock") {
+    const volScore = volume >= EQUITY_MIN_VOLUME ? 5 : 0;
+    return Number((Math.abs(move) + volScore).toFixed(2));
+  }
+
+  return score(move, oiChangePercent, volumeRatio);
+}
+
+function normalizeRows(rows = [], market = "future-stock") {
+  return rows
+    .filter((r) => num(r.ltp) > 0)
+    .map((r) => {
+      const move = num(r.changePercent);
+      const oiChangePercent = num(r.oiChangePercent);
+      const volume = num(r.volume);
+      const volumeRatio = num(r.volumeRatio) || (volume > 0 ? 1 : 0);
+      const finalSignal = r.signal || getScannerSignal(market, move, oiChangePercent, volumeRatio, volume);
+      const finalScore = Number.isFinite(Number(r.score)) ? Number(r.score) : getScannerScore(market, move, oiChangePercent, volumeRatio, volume);
+
+      return withTradingView({
+        market,
+        ...r,
+        ltp: num(r.ltp),
+        changePercent: move,
+        oi: num(r.oi),
+        oiDayLow: num(r.oiDayLow),
+        oiChangePercent,
+        volume,
+        volumeRatio,
+        signal: finalSignal,
+        score: finalScore,
+        updatedAt: r.updatedAt || safeNow(),
+      });
+    });
 }
 
 function applyTypeFilter(rows, type) {
@@ -163,52 +167,83 @@ function applyTypeFilter(rows, type) {
   if (t === "buy") {
     return rows.filter((r) => {
       const s = String(r.signal || "").toLowerCase();
-      return s.includes("buy") || s.includes("long") || s.includes("top gainer");
+      return s === "buy" || s.includes("long build") || s.includes("short covering");
     });
   }
 
   if (t === "sell") {
     return rows.filter((r) => {
       const s = String(r.signal || "").toLowerCase();
-      return s.includes("sell") || s.includes("short") || s.includes("top loser");
+      return s === "sell" || s.includes("short build") || s.includes("long unwinding");
     });
   }
 
   return rows;
 }
 
-function normalizeRows(rows = [], market = "future-stock") {
-  return rows
-    .filter((r) => num(r.ltp) > 0)
-    .map((r) => {
-      const move = num(r.changePercent);
-      const oiChangePercent = num(r.oiChangePercent);
-      const volumeRatio = num(r.volumeRatio) || (num(r.volume) > 0 ? 1 : 0);
-      const finalSignal = r.signal || signal(move, oiChangePercent, volumeRatio);
-      const finalScore = Number.isFinite(Number(r.score)) ? Number(r.score) : score(move, oiChangePercent, volumeRatio);
+function calcRow(stock, quote, market) {
+  const ltp = num(quote.last_price);
+  const netChange = num(quote.net_change);
+  const volume = num(quote.volume);
+  const oi = num(quote.oi);
+  const oiDayLow = num(quote.oi_day_low);
+  const move = calcMovePercent(ltp, netChange);
+  const oiChangePercent = calcOiChangePercent(oi, oiDayLow);
+  const volX = volume > 0 ? 1 : 0;
+  const finalSignal = getScannerSignal(market, move, oiChangePercent, volX, volume);
 
-      return withTradingView({
-        market,
-        ...r,
-        ltp: num(r.ltp),
-        changePercent: move,
-        oi: num(r.oi),
-        oiDayLow: num(r.oiDayLow),
-        oiChangePercent,
-        volume: num(r.volume),
-        volumeRatio,
-        signal: finalSignal,
-        score: finalScore,
-        updatedAt: r.updatedAt || safeNow(),
-      });
-    });
+  return withTradingView({
+    market,
+    symbol: stock.symbol,
+    underlyingSymbol: stock.underlyingSymbol || stock.symbol,
+    tradingSymbol: stock.tradingSymbol,
+    instrumentKey: stock.instrumentKey,
+    tvSymbol: stock.tvSymbol,
+    tradingViewUrl: stock.tradingViewUrl,
+    expiry: stock.expiry,
+    lotSize: stock.lotSize,
+    strike: Number(stock.strike || 0),
+    optionType: String(stock.optionType || "").toUpperCase(),
+    ltp,
+    changePercent: move,
+    oi,
+    oiDayLow,
+    oiChangePercent,
+    volume,
+    volumeRatio: volX,
+    signal: finalSignal,
+    score: getScannerScore(market, move, oiChangePercent, volX, volume),
+    updatedAt: safeNow(),
+  });
+}
+
+function sortByScore(rows = []) {
+  return [...rows].sort((a, b) => num(b.score) - num(a.score) || num(b.volume) - num(a.volume));
+}
+
+function sortByVolumeThenScore(rows = []) {
+  return [...rows].sort((a, b) => num(b.volume) - num(a.volume) || num(b.score) - num(a.score));
+}
+
+function groupOptionRows(rows = []) {
+  return [...rows].sort((a, b) => {
+    const sym = String(a.underlyingSymbol || a.symbol).localeCompare(String(b.underlyingSymbol || b.symbol));
+    if (sym !== 0) return sym;
+
+    const sa = num(a.strike);
+    const sb = num(b.strike);
+    if (sa !== sb) return sa - sb;
+
+    if (a.optionType === "PE" && b.optionType === "CE") return -1;
+    if (a.optionType === "CE" && b.optionType === "PE") return 1;
+    return 0;
+  });
 }
 
 async function buildGlobalScanner(type = "all", market = "crypto-futures") {
   market = normalizeCacheMarket(market);
 
   let rows = getMarketData(market);
-
   rows = normalizeRows(rows, market);
   rows = applyTypeFilter(rows, type);
 
@@ -223,9 +258,8 @@ async function buildScanner(type = "all", market = "future-stock") {
   }
 
   const cacheKey = `${market}-${type}`;
-  const ttl = CACHE_TTL;
 
-  if (SCANNER_CACHE[cacheKey] && Date.now() - SCANNER_CACHE[cacheKey].time < ttl) {
+  if (SCANNER_CACHE[cacheKey] && Date.now() - SCANNER_CACHE[cacheKey].time < CACHE_TTL) {
     return SCANNER_CACHE[cacheKey].data;
   }
 
@@ -241,49 +275,24 @@ async function buildScanner(type = "all", market = "future-stock") {
   const instrumentKeys = instruments.map((s) => s.instrumentKey).filter(Boolean);
   const quotes = await getQuotesSafe(instrumentKeys);
 
-  let rows = instruments.map((stock) => {
-    const q = getQuoteObject(quotes, stock.instrumentKey, stock.tradingSymbol);
-    const ltp = num(q.last_price);
-    const netChange = num(q.net_change);
-    const volume = num(q.volume);
-    const oi = num(q.oi);
-    const oiDayLow = num(q.oi_day_low);
-    const move = calcMovePercent(ltp, netChange);
-    const oiChangePercent = calcOiChangePercent(oi, oiDayLow);
-    const volX = volume > 0 ? 1 : 0;
-
-    return withTradingView({
-      market,
-      symbol: stock.symbol,
-      underlyingSymbol: stock.underlyingSymbol || stock.symbol,
-      tradingSymbol: stock.tradingSymbol,
-      instrumentKey: stock.instrumentKey,
-      tvSymbol: stock.tvSymbol,
-      tradingViewUrl: stock.tradingViewUrl,
-      expiry: stock.expiry,
-      lotSize: stock.lotSize,
-      strike: Number(stock.strike || 0),
-      optionType: String(stock.optionType || "").toUpperCase(),
-      ltp,
-      changePercent: move,
-      oi,
-      oiDayLow,
-      oiChangePercent,
-      volume,
-      volumeRatio: volX,
-      signal: signal(move, oiChangePercent, volX),
-      score: score(move, oiChangePercent, volX),
-      updatedAt: safeNow(),
-    });
-  });
-
-  rows = rows.filter((r) => r.ltp > 0);
-
-  if (market === "index-option") rows = filterIndexOptionATM(rows);
+  let rows = instruments
+    .map((stock) => {
+      const q = getQuoteObject(quotes, stock.instrumentKey, stock.tradingSymbol);
+      return calcRow(stock, q, market);
+    })
+    .filter((r) => r.ltp > 0);
 
   rows = applyTypeFilter(rows, type);
 
-  const result = market === "index-option" ? rows : rows.sort((a, b) => num(b.score) - num(a.score));
+  let result;
+
+  if (market === "index-option" || market === "equity-stock-option" || market === "future-stock-option") {
+    result = groupOptionRows(rows);
+  } else if (market === "equity-stock" || market === "future-stock") {
+    result = sortByVolumeThenScore(rows);
+  } else {
+    result = sortByScore(rows);
+  }
 
   SCANNER_CACHE[cacheKey] = {
     time: Date.now(),
@@ -303,14 +312,26 @@ async function getSummary(market = "future-stock") {
     gainers: rows.filter((r) => num(r.changePercent) > 0).length,
     losers: rows.filter((r) => num(r.changePercent) < 0).length,
     oiSignals: rows.filter((r) => Math.abs(num(r.oiChangePercent)) >= 7).length,
-    buySignals: rows.filter((r) => {
-      const s = String(r.signal || "").toLowerCase();
-      return s.includes("buy") || s.includes("long") || s.includes("top gainer");
-    }).length,
-    sellSignals: rows.filter((r) => {
-      const s = String(r.signal || "").toLowerCase();
-      return s.includes("sell") || s.includes("short") || s.includes("top loser");
-    }).length,
+    buySignals: rows.filter(
+      (r) =>
+        String(r.signal || "").toLowerCase() === "buy" ||
+        String(r.signal || "")
+          .toLowerCase()
+          .includes("long build") ||
+        String(r.signal || "")
+          .toLowerCase()
+          .includes("short covering")
+    ).length,
+    sellSignals: rows.filter(
+      (r) =>
+        String(r.signal || "").toLowerCase() === "sell" ||
+        String(r.signal || "")
+          .toLowerCase()
+          .includes("short build") ||
+        String(r.signal || "")
+          .toLowerCase()
+          .includes("long unwinding")
+    ).length,
   };
 }
 
