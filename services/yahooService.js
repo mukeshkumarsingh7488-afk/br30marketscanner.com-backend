@@ -1,9 +1,11 @@
 const YahooFinance = require("yahoo-finance2").default;
+
 const yahooFinance = new YahooFinance();
 
 if (typeof yahooFinance.suppressNotices === "function") {
   yahooFinance.suppressNotices(["yahooSurvey"]);
 }
+
 const YAHOO_CACHE = {};
 const CACHE_TTL = 60 * 1000;
 const STALE_TTL = 30 * 60 * 1000;
@@ -235,11 +237,7 @@ function toRow(q = {}, market) {
 
 async function quoteOneSafe(symbol, market) {
   try {
-    const q = await yahooFinance.quote(symbol, {
-      fields: ["symbol", "regularMarketPrice", "regularMarketChangePercent", "regularMarketVolume", "postMarketPrice", "postMarketChangePercent", "preMarketPrice", "preMarketChangePercent", "bid", "ask", "volume"],
-      validateResult: false,
-    });
-
+    const q = await yahooFinance.quote(symbol);
     return toRow(q, market);
   } catch (err) {
     console.log("YAHOO SINGLE ERROR =>", symbol, err.message);
@@ -249,13 +247,8 @@ async function quoteOneSafe(symbol, market) {
 
 async function quoteBatchSafe(symbols, market) {
   try {
-    const quotes = await yahooFinance.quote(symbols, {
-      fields: ["symbol", "regularMarketPrice", "regularMarketChangePercent", "regularMarketVolume", "postMarketPrice", "postMarketChangePercent", "preMarketPrice", "preMarketChangePercent", "bid", "ask", "volume"],
-      validateResult: false,
-    });
-
+    const quotes = await yahooFinance.quote(symbols);
     const list = Array.isArray(quotes) ? quotes : [quotes];
-
     return list.map((q) => toRow(q, market)).filter(Boolean);
   } catch (err) {
     console.log("YAHOO BATCH ERROR =>", market, err.message);
@@ -286,7 +279,6 @@ async function getYahooRows(market = "forex-majors") {
     return [];
   } catch (error) {
     console.log("YAHOO SERVICE ERROR =>", market, error.message);
-
     if (cached && cached.data?.length && Date.now() - cached.time < STALE_TTL) return cached.data;
     return [];
   }
