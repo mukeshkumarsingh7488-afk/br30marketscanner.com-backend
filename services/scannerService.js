@@ -10,14 +10,83 @@ const YAHOO_CACHE_TTL = 60000;
 const CRYPTO_CACHE_TTL = 5000;
 
 const INDEX_ORDER = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "NIFTYNXT50", "SENSEX", "BANKEX"];
-const MULTI_ASSET_MARKETS = ["crypto-futures", "forex", "forex-cross", "metals", "commodities", "global-index", "us-stocks", "us-etfs"];
+const MULTI_ASSET_MARKETS = ["crypto-futures", "forex-majors", "forex-cross", "metals", "commodities", "global-index", "us-stocks", "us-etfs"];
+
+const MARKET_ALIASES = {
+  forex: "forex-majors",
+  "forex-major": "forex-majors",
+  "forex-majors": "forex-majors",
+  crypto: "crypto-futures",
+  "crypto-future": "crypto-futures",
+  "crypto-futures": "crypto-futures",
+  global: "global-index",
+  "global-index": "global-index",
+  "us-stock": "us-stocks",
+  "us-stocks": "us-stocks",
+  "us-etf": "us-etfs",
+  "us-etfs": "us-etfs",
+  metals: "metals",
+  commodities: "commodities",
+  "forex-cross": "forex-cross",
+};
 
 const chunk = (arr, size = 40) => Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
 
+function normalizeMarket(market = "future-stock") {
+  const key = String(market || "future-stock")
+    .trim()
+    .toLowerCase();
+  return MARKET_ALIASES[key] || key;
+}
+
 function getCacheTtl(market) {
+  market = normalizeMarket(market);
   if (market === "crypto-futures") return CRYPTO_CACHE_TTL;
-  if (["forex", "forex-cross", "metals", "commodities", "global-index", "us-stocks", "us-etfs"].includes(market)) return YAHOO_CACHE_TTL;
+  if (["forex-majors", "forex-cross", "metals", "commodities", "global-index", "us-stocks", "us-etfs"].includes(market)) return YAHOO_CACHE_TTL;
   return CACHE_TTL;
+}
+
+function safeNow() {
+  return new Date().toLocaleTimeString("en-IN", { hour12: false });
+}
+
+function safeTradingViewSymbol(row = {}) {
+  if (row.tvSymbol) return row.tvSymbol;
+
+  const market = normalizeMarket(row.market);
+  const symbol = String(row.symbol || row.tradingSymbol || "")
+    .replace(/[^A-Z0-9]/gi, "")
+    .toUpperCase();
+
+  if (!symbol) return "";
+
+  if (market === "crypto-futures") return `BINANCE:${symbol}.P`;
+  if (market === "forex-majors" || market === "forex-cross") return `FX:${symbol}`;
+  if (market === "metals") {
+    if (symbol.includes("XAU")) return "OANDA:XAUUSD";
+    if (symbol.includes("XAG")) return "OANDA:XAGUSD";
+    return `OANDA:${symbol}`;
+  }
+  if (market === "commodities") return row.exchange ? `${row.exchange}:${symbol}` : symbol;
+  if (market === "global-index") return row.exchange ? `${row.exchange}:${symbol}` : symbol;
+  if (market === "us-stocks") return row.exchange ? `${row.exchange}:${symbol}` : `NASDAQ:${symbol}`;
+  if (market === "us-etfs") return row.exchange ? `${row.exchange}:${symbol}` : `AMEX:${symbol}`;
+
+  if (market === "index-option" || market === "future-stock" || market === "cash-stock") {
+    if (["SENSEX", "BANKEX"].includes(symbol)) return `BSE:${symbol}`;
+    return `NSE:${symbol}`;
+  }
+
+  return symbol;
+}
+
+function withTradingView(row = {}) {
+  const tvSymbol = safeTradingViewSymbol(row);
+  return {
+    ...row,
+    tvSymbol,
+    tradingViewUrl: tvSymbol ? `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}` : "",
+  };
 }
 
 function calcMovePercent(ltp, netChange) {
@@ -41,10 +110,16 @@ function getQuoteObject(quotes, instrumentKey, tradingSymbol) {
 
 async function getQuotesSafe(keys = []) {
   let finalQuotes = {};
+
   for (const part of chunk(keys, 80)) {
-    const q = await getFullMarketQuotes(part);
-    finalQuotes = { ...finalQuotes, ...(q || {}) };
+    try {
+      const q = await getFullMarketQuotes(part);
+      finalQuotes = { ...finalQuotes, ...(q || {}) };
+    } catch (err) {
+      console.log("UPSTOX QUOTE CHUNK ERROR =>", err.message);
+    }
   }
+
   return finalQuotes;
 }
 
@@ -91,25 +166,83 @@ function applyTypeFilter(rows, type) {
   if (type === "losers") return rows.filter((r) => r.changePercent <= -2 || r.changePercent < 0);
   if (type === "oi") return rows.filter((r) => Math.abs(r.oiChangePercent) >= 7);
   if (type === "volume") return rows.filter((r) => r.volumeRatio >= 2 || r.volume > 0);
+  if (type === "buy")
+    return rows.filter(
+      (r) =>
+        String(r.signal || "")
+          .toLowerCase()
+          .includes("buy") ||
+        String(r.signal || "")
+          .toLowerCase()
+          .includes("long")
+    );
+  if (type === "sell")
+    return rows.filter(
+      (r) =>
+        String(r.signal || "")
+          .toLowerCase()
+          .includes("sell") ||
+        String(r.signal || "")
+          .toLowerCase()
+          .includes("short")
+    );
   return rows;
 }
 
+function normalizeRows(rows = [], market = "future-stock") {
+  return rows
+    .filter((r) => num(r.ltp) > 0)
+    .map((r) => {
+      const move = num(r.changePercent);
+      const oiChangePercent = num(r.oiChangePercent);
+      const volumeRatio = num(r.volumeRatio) || (num(r.volume) > 0 ? 1 : 0);
+      const finalSignal = r.signal || signal(move, oiChangePercent, volumeRatio);
+      const finalScore = Number.isFinite(Number(r.score)) ? Number(r.score) : score(move, oiChangePercent, volumeRatio);
+
+      return withTradingView({
+        market,
+        ...r,
+        ltp: num(r.ltp),
+        changePercent: move,
+        oi: num(r.oi),
+        oiDayLow: num(r.oiDayLow),
+        oiChangePercent,
+        volume: num(r.volume),
+        volumeRatio,
+        signal: finalSignal,
+        score: finalScore,
+        updatedAt: r.updatedAt || safeNow(),
+      });
+    });
+}
+
 async function buildMultiAssetScanner(type = "all", market = "crypto-futures") {
+  market = normalizeMarket(market);
+
   let rows = [];
 
-  if (market === "crypto-futures") rows = await getCryptoFuturesRows();
-
-  if (["forex", "forex-cross", "metals", "commodities", "global-index", "us-stocks", "us-etfs"].includes(market)) {
-    rows = await getYahooRows(market);
+  try {
+    if (market === "crypto-futures") {
+      rows = await getCryptoFuturesRows();
+    } else if (["forex-majors", "forex-cross", "metals", "commodities", "global-index", "us-stocks", "us-etfs"].includes(market)) {
+      rows = await getYahooRows(market);
+    } else {
+      rows = [];
+    }
+  } catch (err) {
+    console.log(`MULTI ASSET ERROR [${market}] =>`, err.message);
+    rows = [];
   }
 
-  rows = rows.filter((r) => r.ltp > 0);
+  rows = normalizeRows(rows, market);
   rows = applyTypeFilter(rows, type);
 
-  return rows.sort((a, b) => b.score - a.score);
+  return rows.sort((a, b) => num(b.score) - num(a.score));
 }
 
 async function buildScanner(type = "all", market = "future-stock") {
+  market = normalizeMarket(market);
+
   const cacheKey = `${market}-${type}`;
   const ttl = getCacheTtl(market);
 
@@ -128,9 +261,18 @@ async function buildScanner(type = "all", market = "future-stock") {
     return multiResult;
   }
 
-  const instruments = await loadInstrumentsByMarket(market);
+  let instruments = [];
+  let quotes = {};
+
+  try {
+    instruments = await loadInstrumentsByMarket(market);
+  } catch (err) {
+    console.log(`LOAD INSTRUMENTS ERROR [${market}] =>`, err.message);
+    instruments = [];
+  }
+
   const instrumentKeys = instruments.map((s) => s.instrumentKey).filter(Boolean);
-  const quotes = await getQuotesSafe(instrumentKeys);
+  quotes = await getQuotesSafe(instrumentKeys);
 
   let rows = instruments.map((stock) => {
     const q = getQuoteObject(quotes, stock.instrumentKey, stock.tradingSymbol);
@@ -143,7 +285,7 @@ async function buildScanner(type = "all", market = "future-stock") {
     const oiChangePercent = calcOiChangePercent(oi, oiDayLow);
     const volX = volume > 0 ? 1 : 0;
 
-    return {
+    return withTradingView({
       market,
       symbol: stock.symbol,
       underlyingSymbol: stock.underlyingSymbol || stock.symbol,
@@ -162,8 +304,8 @@ async function buildScanner(type = "all", market = "future-stock") {
       volumeRatio: volX,
       signal: signal(move, oiChangePercent, volX),
       score: score(move, oiChangePercent, volX),
-      updatedAt: new Date().toLocaleTimeString("en-IN"),
-    };
+      updatedAt: safeNow(),
+    });
   });
 
   rows = rows.filter((r) => r.ltp > 0);
@@ -172,7 +314,7 @@ async function buildScanner(type = "all", market = "future-stock") {
 
   rows = applyTypeFilter(rows, type);
 
-  let result = market === "index-option" ? rows : rows.sort((a, b) => b.score - a.score);
+  const result = market === "index-option" ? rows : rows.sort((a, b) => num(b.score) - num(a.score));
 
   SCANNER_CACHE[cacheKey] = {
     time: Date.now(),
@@ -183,6 +325,8 @@ async function buildScanner(type = "all", market = "future-stock") {
 }
 
 async function getSummary(market = "future-stock") {
+  market = normalizeMarket(market);
+
   const rows = await buildScanner("all", market);
   const call = (r) => String(r.signal || "").toLowerCase();
 
@@ -196,4 +340,9 @@ async function getSummary(market = "future-stock") {
   };
 }
 
-module.exports = { buildScanner, getSummary };
+module.exports = {
+  buildScanner,
+  getSummary,
+  normalizeMarket,
+  withTradingView,
+};

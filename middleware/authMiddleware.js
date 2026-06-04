@@ -3,12 +3,20 @@ const User = require("../models/User");
 
 const protect = async (req, res, next) => {
   try {
-    const token = req.headers.authorization?.split(" ")[1];
+    const authHeader = req.headers.authorization || "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : null;
 
     if (!token) {
       return res.status(401).json({
         success: false,
         msg: "Token missing",
+      });
+    }
+
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({
+        success: false,
+        msg: "JWT_SECRET missing on server",
       });
     }
 
@@ -29,9 +37,6 @@ const protect = async (req, res, next) => {
         msg: "Your account is blocked. Contact support.",
       });
     }
-    // ==========================
-    // SUBSCRIPTION AUTO CHECK
-    // ==========================
 
     if (user.role !== "admin") {
       const now = new Date();
@@ -52,9 +57,9 @@ const protect = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    res.status(401).json({
+    return res.status(401).json({
       success: false,
-      msg: "Invalid token",
+      msg: error.name === "TokenExpiredError" ? "Token expired" : "Invalid token",
     });
   }
 };
@@ -70,10 +75,6 @@ const adminOnly = (req, res, next) => {
   next();
 };
 
-// ==========================
-// SCANNER ACCESS CHECK
-// ==========================
-
 const subscriptionRequired = async (req, res, next) => {
   try {
     const user = req.user;
@@ -85,19 +86,13 @@ const subscriptionRequired = async (req, res, next) => {
       });
     }
 
-    // Admin always access
-
     if (user.role === "admin") {
       return next();
     }
 
-    // Active subscription
-
     if (user.subscriptionStatus === "active" && user.isSubscriptionActive) {
       return next();
     }
-
-    // Free Trial
 
     if (user.subscriptionStatus === "trial" && user.trialEndDate && new Date(user.trialEndDate) > new Date()) {
       return next();

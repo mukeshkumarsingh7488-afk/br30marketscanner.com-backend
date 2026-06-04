@@ -4,15 +4,23 @@ function num(v) {
 }
 
 function signal(move, oi, volume = 0) {
-  if (move >= 2 && oi >= 7 && volume >= 2) return "🔥 Strong Long Build-Up";
-  if (move <= -2 && oi >= 7 && volume >= 2) return "🔥 Strong Short Build-Up";
-  if (move >= 2 && oi >= 7) return "Long Build-Up";
-  if (move <= -2 && oi >= 7) return "Short Build-Up";
-  if (move >= 2 && oi <= -7) return "Short Covering";
-  if (move <= -2 && oi <= -7) return "Long Unwinding";
-  if (move >= 2) return "Top Gainer";
-  if (move <= -2) return "Top Loser";
-  return "Watchlist";
+  move = num(move);
+  oi = num(oi);
+  volume = num(volume);
+
+  if (move >= 2 && oi >= 7 && volume >= 2) return "BUY 🔥 Strong Long Build-Up";
+  if (move <= -2 && oi >= 7 && volume >= 2) return "SELL 🔥 Strong Short Build-Up";
+
+  if (move >= 2 && oi >= 7) return "BUY Long Build-Up";
+  if (move <= -2 && oi >= 7) return "SELL Short Build-Up";
+
+  if (move >= 2 && oi <= -7) return "BUY Short Covering";
+  if (move <= -2 && oi <= -7) return "SELL Long Unwinding";
+
+  if (move >= 2) return "BUY Top Gainer";
+  if (move <= -2) return "SELL Top Loser";
+
+  return "WAIT Watchlist";
 }
 
 function score(move, oi, volume = 0) {

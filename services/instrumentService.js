@@ -1,38 +1,219 @@
 const axios = require("axios");
 const zlib = require("zlib");
 
-const MASTER_URL = "https://assets.upstox.com/market-quote/instruments/exchange/complete.json.gz";
+const MASTER_URL = process.env.UPSTOX_MASTER_URL || "https://assets.upstox.com/market-quote/instruments/exchange/complete.json.gz";
+
 const INDEX_SYMBOLS = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "NIFTYNXT50", "SENSEX", "BANKEX"];
 
-let cache = { loadedAt: null, instruments: [] };
+const MASTER_CACHE_TTL = 6 * 60 * 60 * 1000;
 
-const getSymbol = (x) => (x.asset_symbol || x.underlying_symbol || x.name || x.trading_symbol || "").toString().toUpperCase();
-const expiryMs = (v) => (!v ? 0 : typeof v === "number" ? v : Number.isFinite(new Date(v).getTime()) ? new Date(v).getTime() : 0);
-const isFoSegment = (x) => ["NSE_FO", "BSE_FO"].includes(String(x.segment).toUpperCase());
+let cache = {
+  loadedAt: null,
+  instruments: [],
+};
 
-async function loadMaster(force = false) {
-  if (!force && cache.instruments.length && cache.loadedAt && Date.now() - cache.loadedAt < 6 * 60 * 60 * 1000) return cache.instruments;
-  const res = await axios.get(MASTER_URL, { responseType: "arraybuffer" });
-  cache.instruments = JSON.parse(zlib.gunzipSync(res.data).toString("utf-8"));
-  cache.loadedAt = Date.now();
-  console.log(`✅ Loaded Upstox master instruments: ${cache.instruments.length}`);
-  return cache.instruments;
+function normalizeMarket(market = "future-stock") {
+  const key = String(market || "future-stock")
+    .trim()
+    .toLowerCase();
+
+  const aliases = {
+    future: "future-stock",
+    futures: "future-stock",
+    "stock-future": "future-stock",
+    "future-stock": "future-stock",
+    "index-future": "index-future",
+    equity: "equity-stock",
+    "cash-stock": "equity-stock",
+    "equity-stock": "equity-stock",
+    "index-option": "index-option",
+    "stock-option": "equity-stock-option",
+    "equity-stock-option": "equity-stock-option",
+    "future-stock-option": "future-stock-option",
+  };
+
+  return aliases[key] || key;
 }
 
-const pickNearestBySymbol = (items) => {
+function safeUpper(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase();
+}
+
+function getSymbol(x = {}) {
+  return safeUpper(x.asset_symbol || x.underlying_symbol || x.name || x.trading_symbol);
+}
+
+function expiryMs(value) {
+  if (!value) return 0;
+  if (typeof value === "number") return value;
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function isFoSegment(x = {}) {
+  return ["NSE_FO", "BSE_FO"].includes(safeUpper(x.segment));
+}
+
+function isExpired(x = {}) {
+  const exp = expiryMs(x.expiry);
+  if (!exp) return false;
+  return exp < Date.now();
+}
+
+function getExchangePrefix(segment = "", symbol = "") {
+  const seg = safeUpper(segment);
+  const sym = safeUpper(symbol);
+
+  if (seg.startsWith("BSE")) return "BSE";
+  if (["SENSEX", "BANKEX"].includes(sym)) return "BSE";
+  return "NSE";
+}
+
+function makeTradingView(symbol, segment = "") {
+  const clean = safeUpper(symbol).replace(/[^A-Z0-9]/g, "");
+  if (!clean) return { tvSymbol: "", tradingViewUrl: "" };
+
+  const exchange = getExchangePrefix(segment, clean);
+  const tvSymbol = `${exchange}:${clean}`;
+
+  return {
+    tvSymbol,
+    tradingViewUrl: `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}`,
+  };
+}
+
+function makeOptionTvSymbol(underlyingSymbol, segment = "") {
+  const clean = safeUpper(underlyingSymbol).replace(/[^A-Z0-9]/g, "");
+  if (!clean) return { tvSymbol: "", tradingViewUrl: "" };
+
+  const exchange = getExchangePrefix(segment, clean);
+  const tvSymbol = `${exchange}:${clean}`;
+
+  return {
+    tvSymbol,
+    tradingViewUrl: `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}`,
+  };
+}
+
+async function loadMaster(force = false) {
+  if (!force && cache.instruments.length && cache.loadedAt && Date.now() - cache.loadedAt < MASTER_CACHE_TTL) {
+    return cache.instruments;
+  }
+
+  try {
+    const res = await axios.get(MASTER_URL, {
+      responseType: "arraybuffer",
+      timeout: 30000,
+      headers: {
+        Accept: "application/json, application/gzip, */*",
+        "User-Agent": "BR30-Market-Scanner/1.0",
+      },
+    });
+
+    const raw = zlib.gunzipSync(res.data).toString("utf-8");
+    const parsed = JSON.parse(raw);
+
+    if (!Array.isArray(parsed)) {
+      throw new Error("Invalid Upstox master format");
+    }
+
+    cache.instruments = parsed;
+    cache.loadedAt = Date.now();
+
+    console.log(`✅ Loaded Upstox master instruments: ${cache.instruments.length}`);
+
+    return cache.instruments;
+  } catch (err) {
+    console.log("UPSTOX MASTER LOAD ERROR =>", err.message);
+
+    if (cache.instruments.length) {
+      console.log("⚠️ Using old Upstox master cache");
+      return cache.instruments;
+    }
+
+    return [];
+  }
+}
+
+function baseInstrument(item = {}) {
+  const symbol = getSymbol(item);
+  const tv = makeTradingView(symbol, item.segment);
+
+  return {
+    symbol,
+    underlyingSymbol: symbol,
+    name: item.name || symbol,
+    tradingSymbol: item.trading_symbol || symbol,
+    instrumentKey: item.instrument_key,
+    expiry: item.expiry || null,
+    lotSize: item.lot_size || item.minimum_lot || 1,
+    instrumentType: item.instrument_type || "",
+    segment: item.segment || "",
+    exchange: getExchangePrefix(item.segment, symbol),
+    ...tv,
+  };
+}
+
+function optionInstrument(item = {}) {
+  const underlyingSymbol = getSymbol(item);
+  const strike = Number(item.strike_price || 0);
+  const optionType = safeUpper(item.instrument_type);
+  const tv = makeOptionTvSymbol(underlyingSymbol, item.segment);
+
+  return {
+    symbol: `${underlyingSymbol} ${strike || ""} ${optionType}`.trim(),
+    underlyingSymbol,
+    name: item.name || underlyingSymbol,
+    tradingSymbol: item.trading_symbol || `${underlyingSymbol}${strike}${optionType}`,
+    instrumentKey: item.instrument_key,
+    expiry: item.expiry || null,
+    lotSize: item.lot_size || item.minimum_lot || 1,
+    strike,
+    optionType,
+    instrumentType: item.instrument_type || "",
+    segment: item.segment || "",
+    exchange: getExchangePrefix(item.segment, underlyingSymbol),
+    ...tv,
+  };
+}
+
+function pickNearestBySymbol(items = []) {
   const grouped = new Map();
+
   for (const item of items) {
     const symbol = getSymbol(item);
     if (!symbol || !item.instrument_key) continue;
+
     const exp = expiryMs(item.expiry);
     const old = grouped.get(symbol);
-    if (!old || exp < old.expiryMs)
-      grouped.set(symbol, { symbol, name: item.name, tradingSymbol: item.trading_symbol, instrumentKey: item.instrument_key, expiry: item.expiry, expiryMs: exp, lotSize: item.lot_size || item.minimum_lot || 0, instrumentType: item.instrument_type, segment: item.segment });
-  }
-  return Array.from(grouped.values()).sort((a, b) => INDEX_SYMBOLS.indexOf(a.symbol) - INDEX_SYMBOLS.indexOf(b.symbol));
-};
 
-const pickNearestOptionsByIndex = (items, perIndexLimit = 500) => {
+    if (!old || (exp && exp < old.expiryMs)) {
+      grouped.set(symbol, {
+        ...baseInstrument(item),
+        expiryMs: exp,
+      });
+    }
+  }
+
+  return Array.from(grouped.values())
+    .map(({ expiryMs, ...rest }) => rest)
+    .sort((a, b) => {
+      const ia = INDEX_SYMBOLS.indexOf(a.symbol);
+      const ib = INDEX_SYMBOLS.indexOf(b.symbol);
+
+      if (ia !== -1 || ib !== -1) {
+        if (ia === -1) return 1;
+        if (ib === -1) return -1;
+        return ia - ib;
+      }
+
+      return String(a.symbol).localeCompare(String(b.symbol));
+    });
+}
+
+function pickNearestOptionsByIndex(items = [], perIndexLimit = 500) {
   const finalList = [];
 
   for (const symbol of INDEX_SYMBOLS) {
@@ -40,6 +221,7 @@ const pickNearestOptionsByIndex = (items, perIndexLimit = 500) => {
     if (!arr.length) continue;
 
     arr.sort((a, b) => expiryMs(a.expiry) - expiryMs(b.expiry));
+
     const nearestExpiry = expiryMs(arr[0].expiry);
 
     const nearest = arr
@@ -51,68 +233,78 @@ const pickNearestOptionsByIndex = (items, perIndexLimit = 500) => {
   }
 
   return finalList;
-};
+}
+
+function pickNearestStockOptions(items = [], limit = 500) {
+  return items
+    .filter((x) => x.instrument_key)
+    .sort((a, b) => expiryMs(a.expiry) - expiryMs(b.expiry) || getSymbol(a).localeCompare(getSymbol(b)) || Number(a.strike_price || 0) - Number(b.strike_price || 0))
+    .slice(0, limit);
+}
 
 async function loadInstrumentsByMarket(market = "future-stock", force = false) {
+  market = normalizeMarket(market);
+
   const data = await loadMaster(force);
   const now = Date.now();
 
+  if (!Array.isArray(data) || !data.length) {
+    return [];
+  }
+
   if (market === "future-stock") {
-    const list = data.filter((x) => String(x.segment).toUpperCase() === "NSE_FO" && String(x.instrument_type).toUpperCase().includes("FUT") && expiryMs(x.expiry) >= now && !INDEX_SYMBOLS.includes(getSymbol(x)));
+    const list = data.filter((x) => {
+      const symbol = getSymbol(x);
+      return safeUpper(x.segment) === "NSE_FO" && safeUpper(x.instrument_type).includes("FUT") && expiryMs(x.expiry) >= now && !INDEX_SYMBOLS.includes(symbol) && x.instrument_key;
+    });
+
     return pickNearestBySymbol(list);
   }
 
   if (market === "index-future") {
-    const list = data.filter((x) => isFoSegment(x) && String(x.instrument_type).toUpperCase().includes("FUT") && expiryMs(x.expiry) >= now && INDEX_SYMBOLS.includes(getSymbol(x)));
+    const list = data.filter((x) => {
+      const symbol = getSymbol(x);
+      return isFoSegment(x) && safeUpper(x.instrument_type).includes("FUT") && expiryMs(x.expiry) >= now && INDEX_SYMBOLS.includes(symbol) && x.instrument_key;
+    });
+
     return pickNearestBySymbol(list);
   }
 
   if (market === "equity-stock") {
     return data
-      .filter((x) => String(x.segment).toUpperCase() === "NSE_EQ" && String(x.instrument_type).toUpperCase() === "EQ" && x.instrument_key)
+      .filter((x) => safeUpper(x.segment) === "NSE_EQ" && safeUpper(x.instrument_type) === "EQ" && x.instrument_key)
       .slice(0, 500)
-      .map((x) => ({ symbol: getSymbol(x), name: x.name, tradingSymbol: x.trading_symbol, instrumentKey: x.instrument_key, expiry: null, lotSize: 1, instrumentType: x.instrument_type, segment: x.segment }));
+      .map(baseInstrument);
   }
 
   if (market === "index-option") {
-    const list = data.filter((x) => isFoSegment(x) && ["CE", "PE"].includes(String(x.instrument_type).toUpperCase()) && expiryMs(x.expiry) >= now && INDEX_SYMBOLS.includes(getSymbol(x)));
+    const list = data.filter((x) => {
+      const symbol = getSymbol(x);
+      const type = safeUpper(x.instrument_type);
 
-    return pickNearestOptionsByIndex(list, 500).map((x) => ({
-      symbol: `${getSymbol(x)} ${x.strike_price || ""} ${x.instrument_type}`,
-      underlyingSymbol: getSymbol(x),
-      name: x.name,
-      tradingSymbol: x.trading_symbol,
-      instrumentKey: x.instrument_key,
-      expiry: x.expiry,
-      lotSize: x.lot_size || 0,
-      strike: Number(x.strike_price || 0),
-      optionType: String(x.instrument_type || "").toUpperCase(),
-      instrumentType: x.instrument_type,
-      segment: x.segment,
-    }));
+      return isFoSegment(x) && ["CE", "PE"].includes(type) && expiryMs(x.expiry) >= now && INDEX_SYMBOLS.includes(symbol) && x.instrument_key;
+    });
+
+    return pickNearestOptionsByIndex(list, 500).map(optionInstrument);
   }
 
   if (market === "equity-stock-option" || market === "future-stock-option") {
-    const list = data
-      .filter((x) => String(x.segment).toUpperCase() === "NSE_FO" && ["CE", "PE"].includes(String(x.instrument_type).toUpperCase()) && expiryMs(x.expiry) >= now && !INDEX_SYMBOLS.includes(getSymbol(x)))
-      .sort((a, b) => expiryMs(a.expiry) - expiryMs(b.expiry))
-      .slice(0, 500);
-    return list.map((x) => ({
-      symbol: `${getSymbol(x)} ${x.strike_price || ""} ${x.instrument_type}`,
-      underlyingSymbol: getSymbol(x),
-      name: x.name,
-      tradingSymbol: x.trading_symbol,
-      instrumentKey: x.instrument_key,
-      expiry: x.expiry,
-      lotSize: x.lot_size || 0,
-      strike: Number(x.strike_price || 0),
-      optionType: String(x.instrument_type || "").toUpperCase(),
-      instrumentType: x.instrument_type,
-      segment: x.segment,
-    }));
+    const list = data.filter((x) => {
+      const symbol = getSymbol(x);
+      const type = safeUpper(x.instrument_type);
+
+      return safeUpper(x.segment) === "NSE_FO" && ["CE", "PE"].includes(type) && expiryMs(x.expiry) >= now && !INDEX_SYMBOLS.includes(symbol) && x.instrument_key;
+    });
+
+    return pickNearestStockOptions(list, 500).map(optionInstrument);
   }
 
   return loadInstrumentsByMarket("future-stock", force);
 }
 
-module.exports = { loadInstrumentsByMarket, loadStockFutures: () => loadInstrumentsByMarket("future-stock") };
+module.exports = {
+  loadInstrumentsByMarket,
+  loadStockFutures: () => loadInstrumentsByMarket("future-stock"),
+  loadMaster,
+  normalizeMarket,
+};

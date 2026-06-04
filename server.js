@@ -29,36 +29,20 @@ const isAllowedOrigin = (origin) => {
   return false;
 };
 
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-
-  if (isAllowedOrigin(origin)) {
-    res.header("Access-Control-Allow-Origin", origin || "*");
-    res.header("Vary", "Origin");
-  }
-
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
-  }
-
-  next();
-});
-
 app.use(
   cors({
     origin: (origin, callback) => {
       if (isAllowedOrigin(origin)) return callback(null, true);
-      return callback(new Error("Not allowed by CORS"));
+      return callback(new Error(`CORS blocked origin: ${origin}`));
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
+    optionsSuccessStatus: 204,
   })
 );
+
+app.options("*", cors());
 
 app.use(express.json({ limit: "10mb" }));
 
@@ -74,9 +58,25 @@ app.get("/", (req, res) => {
   });
 });
 
+app.get("/health", (req, res) => {
+  res.json({
+    success: true,
+    status: "OK",
+    time: new Date().toISOString(),
+  });
+});
+
 app.use("/api/auth", authRoutes);
 app.use("/api/scanner", scannerRoutes);
 app.use("/api/subscription", subscriptionRoutes);
+
+app.use((err, req, res, next) => {
+  console.log("GLOBAL ERROR =>", err.message);
+  res.status(err.status || 500).json({
+    success: false,
+    msg: err.message || "Internal server error",
+  });
+});
 
 app.use((req, res) => {
   res.status(404).json({
