@@ -1,16 +1,12 @@
 const { getFullMarketQuotes } = require("./upstoxService");
 const { loadInstrumentsByMarket } = require("./instrumentService");
-const { getCryptoFuturesRows } = require("./binanceService");
-const { getYahooRows } = require("./yahooService");
+const { getMarketData, isGlobalMarket, normalizeMarket: normalizeCacheMarket } = require("./marketCache");
 const { num, signal, score } = require("../utils/marketLogic");
 
 const SCANNER_CACHE = {};
 const CACHE_TTL = 3000;
-const YAHOO_CACHE_TTL = 60000;
-const CRYPTO_CACHE_TTL = 5000;
 
 const INDEX_ORDER = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "NIFTYNXT50", "SENSEX", "BANKEX"];
-const MULTI_ASSET_MARKETS = ["crypto-futures", "forex-majors", "forex-cross", "metals", "commodities", "global-index", "us-stocks", "us-etfs"];
 
 const MARKET_ALIASES = {
   forex: "forex-majors",
@@ -39,13 +35,6 @@ function normalizeMarket(market = "future-stock") {
   return MARKET_ALIASES[key] || key;
 }
 
-function getCacheTtl(market) {
-  market = normalizeMarket(market);
-  if (market === "crypto-futures") return CRYPTO_CACHE_TTL;
-  if (["forex-majors", "forex-cross", "metals", "commodities", "global-index", "us-stocks", "us-etfs"].includes(market)) return YAHOO_CACHE_TTL;
-  return CACHE_TTL;
-}
-
 function safeNow() {
   return new Date().toLocaleTimeString("en-IN", { hour12: false });
 }
@@ -60,19 +49,21 @@ function safeTradingViewSymbol(row = {}) {
 
   if (!symbol) return "";
 
-  if (market === "crypto-futures") return `BINANCE:${symbol}.P`;
+  if (market === "crypto-futures") return `BYBIT:${symbol}.P`;
   if (market === "forex-majors" || market === "forex-cross") return `FX:${symbol}`;
+
   if (market === "metals") {
     if (symbol.includes("XAU")) return "OANDA:XAUUSD";
     if (symbol.includes("XAG")) return "OANDA:XAGUSD";
+    if (symbol.includes("XPT")) return "OANDA:XPTUSD";
+    if (symbol.includes("XPD")) return "OANDA:XPDUSD";
     return `OANDA:${symbol}`;
   }
-  if (market === "commodities") return row.exchange ? `${row.exchange}:${symbol}` : symbol;
-  if (market === "global-index") return row.exchange ? `${row.exchange}:${symbol}` : symbol;
+
   if (market === "us-stocks") return row.exchange ? `${row.exchange}:${symbol}` : `NASDAQ:${symbol}`;
   if (market === "us-etfs") return row.exchange ? `${row.exchange}:${symbol}` : `AMEX:${symbol}`;
 
-  if (market === "index-option" || market === "future-stock" || market === "cash-stock") {
+  if (market === "index-option" || market === "future-stock" || market === "equity-stock" || market === "index-future") {
     if (["SENSEX", "BANKEX"].includes(symbol)) return `BSE:${symbol}`;
     return `NSE:${symbol}`;
   }
@@ -85,7 +76,7 @@ function withTradingView(row = {}) {
   return {
     ...row,
     tvSymbol,
-    tradingViewUrl: tvSymbol ? `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}` : "",
+    tradingViewUrl: row.tradingViewUrl || (tvSymbol ? `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}` : ""),
   };
 }
 
@@ -162,30 +153,27 @@ function filterIndexOptionATM(rows) {
 }
 
 function applyTypeFilter(rows, type) {
-  if (type === "gainers") return rows.filter((r) => r.changePercent >= 2 || r.changePercent > 0);
-  if (type === "losers") return rows.filter((r) => r.changePercent <= -2 || r.changePercent < 0);
-  if (type === "oi") return rows.filter((r) => Math.abs(r.oiChangePercent) >= 7);
-  if (type === "volume") return rows.filter((r) => r.volumeRatio >= 2 || r.volume > 0);
-  if (type === "buy")
-    return rows.filter(
-      (r) =>
-        String(r.signal || "")
-          .toLowerCase()
-          .includes("buy") ||
-        String(r.signal || "")
-          .toLowerCase()
-          .includes("long")
-    );
-  if (type === "sell")
-    return rows.filter(
-      (r) =>
-        String(r.signal || "")
-          .toLowerCase()
-          .includes("sell") ||
-        String(r.signal || "")
-          .toLowerCase()
-          .includes("short")
-    );
+  const t = String(type || "all").toLowerCase();
+
+  if (t === "gainers") return rows.filter((r) => num(r.changePercent) > 0);
+  if (t === "losers") return rows.filter((r) => num(r.changePercent) < 0);
+  if (t === "oi") return rows.filter((r) => Math.abs(num(r.oiChangePercent)) >= 7);
+  if (t === "volume") return rows.filter((r) => num(r.volumeRatio) >= 2 || num(r.volume) > 0);
+
+  if (t === "buy") {
+    return rows.filter((r) => {
+      const s = String(r.signal || "").toLowerCase();
+      return s.includes("buy") || s.includes("long") || s.includes("top gainer");
+    });
+  }
+
+  if (t === "sell") {
+    return rows.filter((r) => {
+      const s = String(r.signal || "").toLowerCase();
+      return s.includes("sell") || s.includes("short") || s.includes("top loser");
+    });
+  }
+
   return rows;
 }
 
@@ -216,23 +204,10 @@ function normalizeRows(rows = [], market = "future-stock") {
     });
 }
 
-async function buildMultiAssetScanner(type = "all", market = "crypto-futures") {
-  market = normalizeMarket(market);
+async function buildGlobalScanner(type = "all", market = "crypto-futures") {
+  market = normalizeCacheMarket(market);
 
-  let rows = [];
-
-  try {
-    if (market === "crypto-futures") {
-      rows = await getCryptoFuturesRows();
-    } else if (["forex-majors", "forex-cross", "metals", "commodities", "global-index", "us-stocks", "us-etfs"].includes(market)) {
-      rows = await getYahooRows(market);
-    } else {
-      rows = [];
-    }
-  } catch (err) {
-    console.log(`MULTI ASSET ERROR [${market}] =>`, err.message);
-    rows = [];
-  }
+  let rows = getMarketData(market);
 
   rows = normalizeRows(rows, market);
   rows = applyTypeFilter(rows, type);
@@ -243,26 +218,18 @@ async function buildMultiAssetScanner(type = "all", market = "crypto-futures") {
 async function buildScanner(type = "all", market = "future-stock") {
   market = normalizeMarket(market);
 
+  if (isGlobalMarket(market)) {
+    return buildGlobalScanner(type, market);
+  }
+
   const cacheKey = `${market}-${type}`;
-  const ttl = getCacheTtl(market);
+  const ttl = CACHE_TTL;
 
   if (SCANNER_CACHE[cacheKey] && Date.now() - SCANNER_CACHE[cacheKey].time < ttl) {
     return SCANNER_CACHE[cacheKey].data;
   }
 
-  if (MULTI_ASSET_MARKETS.includes(market)) {
-    const multiResult = await buildMultiAssetScanner(type, market);
-
-    SCANNER_CACHE[cacheKey] = {
-      time: Date.now(),
-      data: multiResult,
-    };
-
-    return multiResult;
-  }
-
   let instruments = [];
-  let quotes = {};
 
   try {
     instruments = await loadInstrumentsByMarket(market);
@@ -272,7 +239,7 @@ async function buildScanner(type = "all", market = "future-stock") {
   }
 
   const instrumentKeys = instruments.map((s) => s.instrumentKey).filter(Boolean);
-  quotes = await getQuotesSafe(instrumentKeys);
+  const quotes = await getQuotesSafe(instrumentKeys);
 
   let rows = instruments.map((stock) => {
     const q = getQuoteObject(quotes, stock.instrumentKey, stock.tradingSymbol);
@@ -291,6 +258,8 @@ async function buildScanner(type = "all", market = "future-stock") {
       underlyingSymbol: stock.underlyingSymbol || stock.symbol,
       tradingSymbol: stock.tradingSymbol,
       instrumentKey: stock.instrumentKey,
+      tvSymbol: stock.tvSymbol,
+      tradingViewUrl: stock.tradingViewUrl,
       expiry: stock.expiry,
       lotSize: stock.lotSize,
       strike: Number(stock.strike || 0),
@@ -328,15 +297,20 @@ async function getSummary(market = "future-stock") {
   market = normalizeMarket(market);
 
   const rows = await buildScanner("all", market);
-  const call = (r) => String(r.signal || "").toLowerCase();
 
   return {
     totalStocks: rows.length,
-    gainers: rows.filter((r) => r.changePercent > 0).length,
-    losers: rows.filter((r) => r.changePercent < 0).length,
-    oiSignals: rows.filter((r) => Math.abs(r.oiChangePercent) >= 7).length,
-    buySignals: rows.filter((r) => call(r).includes("buy") || call(r).includes("long") || call(r).includes("top gainer")).length,
-    sellSignals: rows.filter((r) => call(r).includes("sell") || call(r).includes("short") || call(r).includes("top loser")).length,
+    gainers: rows.filter((r) => num(r.changePercent) > 0).length,
+    losers: rows.filter((r) => num(r.changePercent) < 0).length,
+    oiSignals: rows.filter((r) => Math.abs(num(r.oiChangePercent)) >= 7).length,
+    buySignals: rows.filter((r) => {
+      const s = String(r.signal || "").toLowerCase();
+      return s.includes("buy") || s.includes("long") || s.includes("top gainer");
+    }).length,
+    sellSignals: rows.filter((r) => {
+      const s = String(r.signal || "").toLowerCase();
+      return s.includes("sell") || s.includes("short") || s.includes("top loser");
+    }).length,
   };
 }
 
