@@ -16,11 +16,7 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const token = getAccessToken();
-
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
@@ -47,13 +43,9 @@ function getErrorMessage(error) {
 
 async function getQuoteChunk(chunk = []) {
   if (!chunk.length) return {};
-
   const res = await api.get("/market-quote/quotes", {
-    params: {
-      instrument_key: chunk.join(","),
-    },
+    params: { instrument_key: chunk.join(",") },
   });
-
   return res.data?.data || {};
 }
 
@@ -75,18 +67,39 @@ async function getFullMarketQuotes(instrumentKeys = []) {
       finalData = { ...finalData, ...(data || {}) };
     } catch (error) {
       console.log("UPSTOX QUOTE ERROR =>", getErrorMessage(error));
-
-      if (error?.response?.status === 401) {
-        console.log("UPSTOX AUTH ERROR => Access token expired or invalid");
-      }
-
-      if (error?.response?.status === 429) {
-        console.log("UPSTOX RATE LIMIT => Too many requests");
-      }
+      if (error?.response?.status === 401) console.log("UPSTOX AUTH ERROR => Access token expired or invalid");
+      if (error?.response?.status === 429) console.log("UPSTOX RATE LIMIT => Too many requests");
     }
   }
 
   return finalData;
+}
+
+function aggregateToFiveMinute(candles = []) {
+  if (!Array.isArray(candles) || !candles.length) return [];
+
+  const sorted = [...candles].reverse();
+  const result = [];
+
+  for (let i = 0; i < sorted.length; i += 5) {
+    const group = sorted.slice(i, i + 5);
+    if (group.length < 5) continue;
+
+    const first = group[0];
+    const last = group[group.length - 1];
+
+    const time = first[0];
+    const open = Number(first[1] || 0);
+    const high = Math.max(...group.map((c) => Number(c[2] || 0)));
+    const low = Math.min(...group.map((c) => Number(c[3] || 0)));
+    const close = Number(last[4] || 0);
+    const volume = group.reduce((sum, c) => sum + Number(c[5] || 0), 0);
+    const oi = Number(last[6] || 0);
+
+    result.push([time, open, high, low, close, volume, oi]);
+  }
+
+  return result.reverse();
 }
 
 async function getIntradayCandles(instrumentKey, unit = "minutes", interval = 5) {
@@ -98,11 +111,15 @@ async function getIntradayCandles(instrumentKey, unit = "minutes", interval = 5)
   if (!instrumentKey) return [];
 
   try {
-    const encodedKey = encodeURIComponent(instrumentKey);
+    const encodedKey = encodeURIComponent(String(instrumentKey).trim());
 
-    const res = await api.get(`/historical-candle/intraday/${encodedKey}/${unit}/${interval}`);
+    const res = await api.get(`/historical-candle/intraday/${encodedKey}/1minute`);
 
-    return Array.isArray(res.data?.data?.candles) ? res.data.data.candles : [];
+    const candles = Array.isArray(res.data?.data?.candles) ? res.data.data.candles : [];
+
+    if (Number(interval) === 5) return aggregateToFiveMinute(candles);
+
+    return candles;
   } catch (error) {
     console.log("UPSTOX CANDLE ERROR =>", instrumentKey, getErrorMessage(error));
     return [];
