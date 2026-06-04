@@ -102,31 +102,6 @@ function aggregateToFiveMinute(candles = []) {
   return result.reverse();
 }
 
-async function getIntradayCandles(instrumentKey, unit = "minutes", interval = 5) {
-  if (!getAccessToken()) {
-    console.log("UPSTOX TOKEN ERROR => UPSTOX_ACCESS_TOKEN missing");
-    return [];
-  }
-
-  if (!instrumentKey) return [];
-
-  try {
-    const encodedKey = encodeURIComponent(String(instrumentKey).trim());
-
-    const res = await api.get(`/historical-candle/intraday/${encodedKey}/1minute`);
-
-    const candles = Array.isArray(res.data?.data?.candles) ? res.data.data.candles : [];
-
-    if (Number(interval) === 5) return aggregateToFiveMinute(candles);
-
-    return candles;
-  } catch (error) {
-    console.log("UPSTOX CANDLE ERROR =>", instrumentKey, getErrorMessage(error));
-    return [];
-  }
-}
-
 module.exports = {
   getFullMarketQuotes,
-  getIntradayCandles,
 };
