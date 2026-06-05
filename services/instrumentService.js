@@ -41,8 +41,33 @@ function safeUpper(value) {
     .toUpperCase();
 }
 
+function cleanName(value = "") {
+  return String(value || "")
+    .replaceAll("_", " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function getSymbol(x = {}) {
-  return safeUpper(x.asset_symbol || x.underlying_symbol || x.name || x.trading_symbol);
+  const segment = safeUpper(x.segment);
+  const type = safeUpper(x.instrument_type);
+
+  const tradingSymbol = safeUpper(x.trading_symbol || x.tradingsymbol || x.symbol || "")
+    .replace(/-EQ$/i, "")
+    .replace(/\s+EQ$/i, "")
+    .trim();
+  const underlyingSymbol = safeUpper(x.asset_symbol || x.underlying_symbol || "");
+  const name = safeUpper(x.name || "");
+
+  if (segment === "NSE_EQ" || type === "EQ") {
+    return tradingSymbol || underlyingSymbol || name;
+  }
+
+  return underlyingSymbol || tradingSymbol || name;
+}
+
+function getSector(item = {}) {
+  return cleanName(item.sector || item.industry || item.industry_name || item.sector_name || "");
 }
 
 function expiryMs(value) {
@@ -154,7 +179,8 @@ function baseInstrument(item = {}) {
   return {
     symbol,
     underlyingSymbol: symbol,
-    name: item.name || symbol,
+    name: cleanName(item.name || symbol),
+    sector: getSector(item),
     tradingSymbol: item.trading_symbol || symbol,
     instrumentKey: item.instrument_key,
     expiry: item.expiry || null,
@@ -175,7 +201,8 @@ function optionInstrument(item = {}) {
   return {
     symbol: `${underlyingSymbol} ${strike || ""} ${optionType}`.trim(),
     underlyingSymbol,
-    name: item.name || underlyingSymbol,
+    name: cleanName(item.name || underlyingSymbol),
+    sector: getSector(item),
     tradingSymbol: item.trading_symbol || `${underlyingSymbol}${strike}${optionType}`,
     instrumentKey: item.instrument_key,
     expiry: item.expiry || null,

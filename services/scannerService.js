@@ -5,6 +5,7 @@ const { num, signal, score } = require("../utils/marketLogic");
 
 const SCANNER_CACHE = {};
 const CACHE_TTL = 3000;
+const EQUITY_MIN_VOLUME = 2000000;
 
 const INDEX_ORDER = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "NIFTYNXT50", "SENSEX", "BANKEX"];
 
@@ -114,6 +115,19 @@ async function getQuotesSafe(keys = []) {
   return finalQuotes;
 }
 
+function getEquitySignal(move, volume) {
+  if (move >= 2 && volume >= EQUITY_MIN_VOLUME) return "BUY";
+  if (move <= -2 && volume >= EQUITY_MIN_VOLUME) return "SELL";
+  if (move > 0) return "Top Gainer";
+  if (move < 0) return "Top Loser";
+  return "WAIT";
+}
+
+function getEquityScore(move, volume) {
+  const volumeBoost = volume >= EQUITY_MIN_VOLUME ? 5 : 0;
+  return Number((Math.abs(move) + volumeBoost).toFixed(2));
+}
+
 function filterIndexOptionATM(rows) {
   const finalRows = [];
 
@@ -163,14 +177,14 @@ function applyTypeFilter(rows, type) {
   if (t === "buy") {
     return rows.filter((r) => {
       const s = String(r.signal || "").toLowerCase();
-      return s.includes("buy") || s.includes("long") || s.includes("top gainer");
+      return s === "buy" || s.includes("long build") || s.includes("short covering");
     });
   }
 
   if (t === "sell") {
     return rows.filter((r) => {
       const s = String(r.signal || "").toLowerCase();
-      return s.includes("sell") || s.includes("short") || s.includes("top loser");
+      return s === "sell" || s.includes("short build") || s.includes("long unwinding");
     });
   }
 
@@ -183,9 +197,10 @@ function normalizeRows(rows = [], market = "future-stock") {
     .map((r) => {
       const move = num(r.changePercent);
       const oiChangePercent = num(r.oiChangePercent);
-      const volumeRatio = num(r.volumeRatio) || (num(r.volume) > 0 ? 1 : 0);
-      const finalSignal = r.signal || signal(move, oiChangePercent, volumeRatio);
-      const finalScore = Number.isFinite(Number(r.score)) ? Number(r.score) : score(move, oiChangePercent, volumeRatio);
+      const volume = num(r.volume);
+      const volumeRatio = num(r.volumeRatio) || (volume > 0 ? 1 : 0);
+      const finalSignal = r.signal || (market === "equity-stock" ? getEquitySignal(move, volume) : signal(move, oiChangePercent, volumeRatio));
+      const finalScore = Number.isFinite(Number(r.score)) ? Number(r.score) : market === "equity-stock" ? getEquityScore(move, volume) : score(move, oiChangePercent, volumeRatio);
 
       return withTradingView({
         market,
@@ -195,7 +210,7 @@ function normalizeRows(rows = [], market = "future-stock") {
         oi: num(r.oi),
         oiDayLow: num(r.oiDayLow),
         oiChangePercent,
-        volume: num(r.volume),
+        volume,
         volumeRatio,
         signal: finalSignal,
         score: finalScore,
@@ -251,10 +266,14 @@ async function buildScanner(type = "all", market = "future-stock") {
     const move = calcMovePercent(ltp, netChange);
     const oiChangePercent = calcOiChangePercent(oi, oiDayLow);
     const volX = volume > 0 ? 1 : 0;
+    const finalSignal = market === "equity-stock" ? getEquitySignal(move, volume) : signal(move, oiChangePercent, volX);
+    const finalScore = market === "equity-stock" ? getEquityScore(move, volume) : score(move, oiChangePercent, volX);
 
     return withTradingView({
       market,
       symbol: stock.symbol,
+      name: stock.name || "",
+      sector: stock.sector || "",
       underlyingSymbol: stock.underlyingSymbol || stock.symbol,
       tradingSymbol: stock.tradingSymbol,
       instrumentKey: stock.instrumentKey,
@@ -271,8 +290,8 @@ async function buildScanner(type = "all", market = "future-stock") {
       oiChangePercent,
       volume,
       volumeRatio: volX,
-      signal: signal(move, oiChangePercent, volX),
-      score: score(move, oiChangePercent, volX),
+      signal: finalSignal,
+      score: finalScore,
       updatedAt: safeNow(),
     });
   });
@@ -305,11 +324,11 @@ async function getSummary(market = "future-stock") {
     oiSignals: rows.filter((r) => Math.abs(num(r.oiChangePercent)) >= 7).length,
     buySignals: rows.filter((r) => {
       const s = String(r.signal || "").toLowerCase();
-      return s.includes("buy") || s.includes("long") || s.includes("top gainer");
+      return s === "buy" || s.includes("long build") || s.includes("short covering");
     }).length,
     sellSignals: rows.filter((r) => {
       const s = String(r.signal || "").toLowerCase();
-      return s.includes("sell") || s.includes("short") || s.includes("top loser");
+      return s === "sell" || s.includes("short build") || s.includes("long unwinding");
     }).length,
   };
 }
