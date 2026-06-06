@@ -446,37 +446,37 @@ function getNearestExpiryItems(items = []) {
   return valid.filter((x) => expiryMs(x.expiry) === nearestExpiry);
 }
 
-function pickAtmCePeOptions(items = [], underlyingSymbols = []) {
+function nearestStrike(strikes = [], target = 0) {
+  if (!strikes.length || !target) return 0;
+  return strikes.reduce((best, strike) => {
+    if (!best) return strike;
+    return Math.abs(strike - target) < Math.abs(best - target) ? strike : best;
+  }, 0);
+}
+
+function pickFixedItmCePeOptions(items = [], underlyingSymbols = [], priceMap = {}) {
   const finalList = [];
 
   for (const symbol of underlyingSymbols) {
+    const basePrice = Number(priceMap[symbol] || 0);
     const symbolOptions = items.filter((x) => getSymbol(x) === symbol);
     const nearest = getNearestExpiryItems(symbolOptions);
     if (!nearest.length) continue;
 
     const ces = nearest.filter((x) => safeUpper(x.instrument_type) === "CE");
     const pes = nearest.filter((x) => safeUpper(x.instrument_type) === "PE");
-    if (!ces.length && !pes.length) continue;
 
     const strikes = [...new Set(nearest.map((x) => Number(x.strike_price || 0)).filter(Boolean))].sort((a, b) => a - b);
     if (!strikes.length) continue;
 
-    let atmStrike = strikes[Math.floor(strikes.length / 2)];
+    const ceTarget = basePrice ? basePrice - 200 : strikes[Math.floor(strikes.length / 2)];
+    const peTarget = basePrice ? basePrice + 200 : strikes[Math.floor(strikes.length / 2)];
 
-    const premiumDiff = strikes
-      .map((strike) => {
-        const ce = ces.find((x) => Number(x.strike_price || 0) === strike);
-        const pe = pes.find((x) => Number(x.strike_price || 0) === strike);
-        const cePrice = Number(ce?.last_price || ce?.ltp || 0);
-        const pePrice = Number(pe?.last_price || pe?.ltp || 0);
-        return { strike, diff: ce && pe && cePrice && pePrice ? Math.abs(cePrice - pePrice) : Infinity };
-      })
-      .sort((a, b) => a.diff - b.diff);
+    const ceStrike = nearestStrike(strikes, ceTarget);
+    const peStrike = nearestStrike(strikes, peTarget);
 
-    if (premiumDiff[0] && premiumDiff[0].diff !== Infinity) atmStrike = premiumDiff[0].strike;
-
-    const ce = ces.find((x) => Number(x.strike_price || 0) === atmStrike) || ces[0];
-    const pe = pes.find((x) => Number(x.strike_price || 0) === atmStrike) || pes[0];
+    const ce = ces.find((x) => Number(x.strike_price || 0) === ceStrike) || ces[0];
+    const pe = pes.find((x) => Number(x.strike_price || 0) === peStrike) || pes[0];
 
     if (ce) finalList.push(ce);
     if (pe) finalList.push(pe);
@@ -485,7 +485,7 @@ function pickAtmCePeOptions(items = [], underlyingSymbols = []) {
   return finalList;
 }
 
-async function loadInstrumentsByMarket(market = "future-stock", force = false) {
+async function loadInstrumentsByMarket(market = "future-stock", force = false, priceMap = {}) {
   market = normalizeMarket(market);
 
   const data = await loadMaster(force);
@@ -528,7 +528,7 @@ async function loadInstrumentsByMarket(market = "future-stock", force = false) {
       return isFoSegment(x) && ["CE", "PE"].includes(type) && expiryMs(x.expiry) >= now && symbols.includes(symbol) && x.instrument_key;
     });
 
-    return pickAtmCePeOptions(list, symbols).map(optionInstrument);
+    return pickFixedItmCePeOptions(list, symbols, priceMap).map(optionInstrument);
   }
 
   if (market === "equity-stock-option") {
@@ -551,7 +551,7 @@ async function loadInstrumentsByMarket(market = "future-stock", force = false) {
       return safeUpper(x.segment) === "NSE_FO" && ["CE", "PE"].includes(type) && expiryMs(x.expiry) >= now && symbols.includes(symbol) && x.instrument_key;
     });
 
-    return pickAtmCePeOptions(list, symbols).map(optionInstrument);
+    return pickFixedItmCePeOptions(list, symbols, priceMap).map(optionInstrument);
   }
 
   return loadInstrumentsByMarket("future-stock", force);

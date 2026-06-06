@@ -4,7 +4,7 @@ const { getMarketData, isGlobalMarket, normalizeMarket: normalizeCacheMarket } =
 const { num, signal, score } = require("../utils/marketLogic");
 
 const SCANNER_CACHE = {};
-const CACHE_TTL = 3000;
+const CACHE_TTL = 10000;
 const EQUITY_MIN_VOLUME = 2000000;
 
 const OPTION_MARKETS = ["index-option", "equity-stock-option", "future-stock-option"];
@@ -265,9 +265,24 @@ async function buildScanner(type = "all", market = "future-stock") {
   }
 
   let instruments = [];
+  let priceMap = {};
 
   try {
-    instruments = await loadInstrumentsByMarket(market);
+    if (["index-option", "equity-stock-option", "future-stock-option"].includes(market)) {
+      const baseMarket = market === "index-option" ? "index-future" : "future-stock";
+      const baseInstruments = await loadInstrumentsByMarket(baseMarket);
+      const baseKeys = baseInstruments.map((s) => s.instrumentKey).filter(Boolean);
+      const baseQuotes = await getQuotesSafe(baseKeys);
+
+      priceMap = baseInstruments.reduce((acc, item) => {
+        const q = getQuoteObject(baseQuotes, item.instrumentKey, item.tradingSymbol);
+        const ltp = num(q.last_price);
+        if (item.symbol && ltp > 0) acc[item.symbol] = ltp;
+        return acc;
+      }, {});
+    }
+
+    instruments = await loadInstrumentsByMarket(market, false, priceMap);
   } catch (err) {
     console.log(`LOAD INSTRUMENTS ERROR [${market}] =>`, err.message);
     instruments = [];
