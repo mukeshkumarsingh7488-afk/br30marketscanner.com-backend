@@ -538,7 +538,7 @@ async function loadInstrumentsByMarket(market = "future-stock", force = false, p
       return safeUpper(x.segment) === "NSE_FO" && ["CE", "PE"].includes(type) && expiryMs(x.expiry) >= now && NIFTY_50.includes(symbol) && x.instrument_key;
     });
 
-    return pickAtmCePeOptions(list, NIFTY_50).map(optionInstrument);
+    return pickFixedItmCePeOptions(list, NIFTY_50, priceMap).map(optionInstrument);
   }
 
   if (market === "future-stock-option") {
