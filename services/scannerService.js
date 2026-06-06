@@ -7,7 +7,7 @@ const SCANNER_CACHE = {};
 const CACHE_TTL = 3000;
 const EQUITY_MIN_VOLUME = 2000000;
 
-const INDEX_ORDER = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "NIFTYNXT50", "SENSEX", "BANKEX"];
+const OPTION_MARKETS = ["index-option", "equity-stock-option", "future-stock-option"];
 
 const MARKET_ALIASES = {
   forex: "forex-majors",
@@ -25,9 +25,21 @@ const MARKET_ALIASES = {
   metals: "metals",
   commodities: "commodities",
   "forex-cross": "forex-cross",
+  future: "future-stock",
+  futures: "future-stock",
+  "stock-future": "future-stock",
+  "future-stock": "future-stock",
+  "index-future": "index-future",
+  equity: "equity-stock",
+  "cash-stock": "equity-stock",
+  "equity-stock": "equity-stock",
+  "index-option": "index-option",
+  "stock-option": "equity-stock-option",
+  "equity-stock-option": "equity-stock-option",
+  "future-stock-option": "future-stock-option",
 };
 
-const chunk = (arr, size = 40) => Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
+const chunk = (arr, size = 80) => Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
 
 function normalizeMarket(market = "future-stock") {
   const key = String(market || "future-stock")
@@ -36,18 +48,26 @@ function normalizeMarket(market = "future-stock") {
   return MARKET_ALIASES[key] || key;
 }
 
+function isOptionMarket(market = "") {
+  return OPTION_MARKETS.includes(normalizeMarket(market));
+}
+
 function safeNow() {
   return new Date().toLocaleTimeString("en-IN", { hour12: false });
 }
 
-function safeTradingViewSymbol(row = {}) {
-  if (row.tvSymbol) return row.tvSymbol;
-
-  const market = normalizeMarket(row.market);
-  const symbol = String(row.symbol || row.tradingSymbol || "")
+function cleanSymbol(value = "") {
+  return String(value || "")
     .replace(/[^A-Z0-9]/gi, "")
     .toUpperCase();
+}
 
+function safeTradingViewSymbol(row = {}) {
+  const market = normalizeMarket(row.market);
+  if (isOptionMarket(market)) return "";
+  if (row.tvSymbol) return row.tvSymbol;
+
+  const symbol = cleanSymbol(row.underlyingSymbol || row.symbol || row.tradingSymbol);
   if (!symbol) return "";
 
   if (market === "crypto-futures") return `BYBIT:${symbol}.P`;
@@ -64,7 +84,7 @@ function safeTradingViewSymbol(row = {}) {
   if (market === "us-stocks") return row.exchange ? `${row.exchange}:${symbol}` : `NASDAQ:${symbol}`;
   if (market === "us-etfs") return row.exchange ? `${row.exchange}:${symbol}` : `AMEX:${symbol}`;
 
-  if (market === "index-option" || market === "future-stock" || market === "equity-stock" || market === "index-future") {
+  if (market === "future-stock" || market === "equity-stock" || market === "index-future") {
     if (["SENSEX", "BANKEX"].includes(symbol)) return `BSE:${symbol}`;
     return `NSE:${symbol}`;
   }
@@ -73,7 +93,19 @@ function safeTradingViewSymbol(row = {}) {
 }
 
 function withTradingView(row = {}) {
+  const market = normalizeMarket(row.market);
+
+  if (isOptionMarket(market)) {
+    return {
+      ...row,
+      tvSymbol: "",
+      tradingViewUrl: "",
+      tradingViewSearchUrl: "",
+    };
+  }
+
   const tvSymbol = safeTradingViewSymbol(row);
+
   return {
     ...row,
     tvSymbol,
@@ -128,62 +160,39 @@ function getEquityScore(move, volume) {
   return Number((Math.abs(move) + volumeBoost).toFixed(2));
 }
 
-function filterIndexOptionATM(rows) {
-  const finalRows = [];
+function getFinalSignal(market, move, oiChangePercent, volumeRatio, volume) {
+  if (market === "equity-stock") return getEquitySignal(move, volume);
+  return signal(move, oiChangePercent, volumeRatio);
+}
 
-  for (const index of INDEX_ORDER) {
-    const indexRows = rows.filter((r) => r.underlyingSymbol === index);
-    if (!indexRows.length) continue;
-
-    const strikes = [...new Set(indexRows.map((r) => Number(r.strike || 0)).filter(Boolean))].sort((a, b) => a - b);
-    const ceRows = indexRows.filter((r) => String(r.optionType).toUpperCase() === "CE");
-    const peRows = indexRows.filter((r) => String(r.optionType).toUpperCase() === "PE");
-
-    let atmStrike = strikes[Math.floor(strikes.length / 2)];
-
-    const pairDiff = strikes
-      .map((strike) => {
-        const ce = ceRows.find((r) => Number(r.strike) === strike);
-        const pe = peRows.find((r) => Number(r.strike) === strike);
-        return { strike, diff: ce && pe ? Math.abs(Number(ce.ltp || 0) - Number(pe.ltp || 0)) : Infinity };
-      })
-      .sort((a, b) => a.diff - b.diff);
-
-    if (pairDiff[0] && pairDiff[0].diff !== Infinity) atmStrike = pairDiff[0].strike;
-
-    const lower = strikes.filter((s) => s < atmStrike).slice(-9);
-    const upper = strikes.filter((s) => s > atmStrike).slice(0, 10);
-    const selectedStrikes = [...lower, atmStrike, ...upper].slice(0, 20);
-
-    for (const strike of selectedStrikes) {
-      const pe = peRows.find((r) => Number(r.strike) === strike);
-      const ce = ceRows.find((r) => Number(r.strike) === strike);
-      if (pe) finalRows.push(pe);
-      if (ce) finalRows.push(ce);
-    }
-  }
-
-  return finalRows;
+function getFinalScore(market, move, oiChangePercent, volumeRatio, volume) {
+  if (market === "equity-stock") return getEquityScore(move, volume);
+  return score(move, oiChangePercent, volumeRatio);
 }
 
 function applyTypeFilter(rows, type) {
   const t = String(type || "all").toLowerCase();
 
+  if (t === "all" || t === "allstocks") return rows;
   if (t === "gainers") return rows.filter((r) => num(r.changePercent) > 0);
   if (t === "losers") return rows.filter((r) => num(r.changePercent) < 0);
   if (t === "oi") return rows.filter((r) => Math.abs(num(r.oiChangePercent)) >= 7);
   if (t === "volume") return rows.filter((r) => num(r.volumeRatio) >= 2 || num(r.volume) > 0);
 
-  if (t === "buy") {
+  if (t === "buy" || t === "long" || t === "stronglong" || t === "shortcover") {
     return rows.filter((r) => {
       const s = String(r.signal || "").toLowerCase();
+      if (t === "stronglong") return s.includes("strong") && (s.includes("buy") || s.includes("long"));
+      if (t === "shortcover") return s.includes("short covering");
       return s === "buy" || s.includes("long build") || s.includes("short covering");
     });
   }
 
-  if (t === "sell") {
+  if (t === "sell" || t === "short" || t === "strongshort" || t === "longunwind") {
     return rows.filter((r) => {
       const s = String(r.signal || "").toLowerCase();
+      if (t === "strongshort") return s.includes("strong") && (s.includes("sell") || s.includes("short"));
+      if (t === "longunwind") return s.includes("long unwinding");
       return s === "sell" || s.includes("short build") || s.includes("long unwinding");
     });
   }
@@ -191,7 +200,22 @@ function applyTypeFilter(rows, type) {
   return rows;
 }
 
+function sortOptionRows(rows = []) {
+  return rows.sort((a, b) => {
+    const ua = String(a.underlyingSymbol || a.symbol || "");
+    const ub = String(b.underlyingSymbol || b.symbol || "");
+    const typeOrder = { CE: 1, PE: 2 };
+    return ua.localeCompare(ub) || Number(a.strike || 0) - Number(b.strike || 0) || (typeOrder[String(a.optionType || "").toUpperCase()] || 9) - (typeOrder[String(b.optionType || "").toUpperCase()] || 9);
+  });
+}
+
+function sortNormalRows(rows = []) {
+  return rows.sort((a, b) => num(b.score) - num(a.score));
+}
+
 function normalizeRows(rows = [], market = "future-stock") {
+  market = normalizeMarket(market);
+
   return rows
     .filter((r) => num(r.ltp) > 0)
     .map((r) => {
@@ -199,8 +223,8 @@ function normalizeRows(rows = [], market = "future-stock") {
       const oiChangePercent = num(r.oiChangePercent);
       const volume = num(r.volume);
       const volumeRatio = num(r.volumeRatio) || (volume > 0 ? 1 : 0);
-      const finalSignal = r.signal || (market === "equity-stock" ? getEquitySignal(move, volume) : signal(move, oiChangePercent, volumeRatio));
-      const finalScore = Number.isFinite(Number(r.score)) ? Number(r.score) : market === "equity-stock" ? getEquityScore(move, volume) : score(move, oiChangePercent, volumeRatio);
+      const finalSignal = r.signal || getFinalSignal(market, move, oiChangePercent, volumeRatio, volume);
+      const finalScore = Number.isFinite(Number(r.score)) ? Number(r.score) : getFinalScore(market, move, oiChangePercent, volumeRatio, volume);
 
       return withTradingView({
         market,
@@ -223,24 +247,20 @@ async function buildGlobalScanner(type = "all", market = "crypto-futures") {
   market = normalizeCacheMarket(market);
 
   let rows = getMarketData(market);
-
   rows = normalizeRows(rows, market);
   rows = applyTypeFilter(rows, type);
 
-  return rows.sort((a, b) => num(b.score) - num(a.score));
+  return sortNormalRows(rows);
 }
 
 async function buildScanner(type = "all", market = "future-stock") {
   market = normalizeMarket(market);
 
-  if (isGlobalMarket(market)) {
-    return buildGlobalScanner(type, market);
-  }
+  if (isGlobalMarket(market)) return buildGlobalScanner(type, market);
 
   const cacheKey = `${market}-${type}`;
-  const ttl = CACHE_TTL;
 
-  if (SCANNER_CACHE[cacheKey] && Date.now() - SCANNER_CACHE[cacheKey].time < ttl) {
+  if (SCANNER_CACHE[cacheKey] && Date.now() - SCANNER_CACHE[cacheKey].time < CACHE_TTL) {
     return SCANNER_CACHE[cacheKey].data;
   }
 
@@ -258,6 +278,7 @@ async function buildScanner(type = "all", market = "future-stock") {
 
   let rows = instruments.map((stock) => {
     const q = getQuoteObject(quotes, stock.instrumentKey, stock.tradingSymbol);
+
     const ltp = num(q.last_price);
     const netChange = num(q.net_change);
     const volume = num(q.volume);
@@ -265,9 +286,9 @@ async function buildScanner(type = "all", market = "future-stock") {
     const oiDayLow = num(q.oi_day_low);
     const move = calcMovePercent(ltp, netChange);
     const oiChangePercent = calcOiChangePercent(oi, oiDayLow);
-    const volX = volume > 0 ? 1 : 0;
-    const finalSignal = market === "equity-stock" ? getEquitySignal(move, volume) : signal(move, oiChangePercent, volX);
-    const finalScore = market === "equity-stock" ? getEquityScore(move, volume) : score(move, oiChangePercent, volX);
+    const volumeRatio = volume > 0 ? 1 : 0;
+    const finalSignal = getFinalSignal(market, move, oiChangePercent, volumeRatio, volume);
+    const finalScore = getFinalScore(market, move, oiChangePercent, volumeRatio, volume);
 
     return withTradingView({
       market,
@@ -279,6 +300,7 @@ async function buildScanner(type = "all", market = "future-stock") {
       instrumentKey: stock.instrumentKey,
       tvSymbol: stock.tvSymbol,
       tradingViewUrl: stock.tradingViewUrl,
+      tradingViewSearchUrl: stock.tradingViewSearchUrl,
       expiry: stock.expiry,
       lotSize: stock.lotSize,
       strike: Number(stock.strike || 0),
@@ -289,7 +311,7 @@ async function buildScanner(type = "all", market = "future-stock") {
       oiDayLow,
       oiChangePercent,
       volume,
-      volumeRatio: volX,
+      volumeRatio,
       signal: finalSignal,
       score: finalScore,
       updatedAt: safeNow(),
@@ -297,12 +319,9 @@ async function buildScanner(type = "all", market = "future-stock") {
   });
 
   rows = rows.filter((r) => r.ltp > 0);
-
-  if (market === "index-option") rows = filterIndexOptionATM(rows);
-
   rows = applyTypeFilter(rows, type);
 
-  const result = market === "index-option" ? rows : rows.sort((a, b) => num(b.score) - num(a.score));
+  const result = isOptionMarket(market) ? sortOptionRows(rows) : sortNormalRows(rows);
 
   SCANNER_CACHE[cacheKey] = {
     time: Date.now(),
