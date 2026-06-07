@@ -11,8 +11,22 @@ const SYMBOL_GROUPS = {
   "forex-cross": ["EUR/JPY", "GBP/JPY", "EUR/GBP", "AUD/JPY", "CAD/JPY", "CHF/JPY", "GBP/AUD", "EUR/AUD", "EUR/CAD", "GBP/CAD"],
   metals: ["XAU/USD", "XAG/USD", "XPT/USD", "XPD/USD"],
   commodities: ["WTI/USD", "BRENT/USD", "NATURAL_GAS/USD", "COPPER/USD"],
+  "global-index": ["DJI", "IXIC", "SPX", "RUT", "VIX", "FTSE", "DAX", "CAC", "N225", "HSI"],
   "us-stocks": ["AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "GOOGL", "META", "NFLX", "AMD", "INTC", "COIN", "MSTR", "PLTR", "JPM", "BAC", "V", "MA", "DIS", "BA", "WMT"],
   "us-etfs": ["SPY", "QQQ", "DIA", "IWM", "VTI", "VOO", "XLK", "XLF", "XLE", "XLY", "XLI", "XLV", "GLD", "SLV", "USO", "TLT", "ARKK", "SOXX", "SMH", "HYG"],
+};
+
+const DISPLAY_NAMES = {
+  DJI: "US30",
+  IXIC: "NASDAQ",
+  SPX: "SPX500",
+  RUT: "RUSSELL2000",
+  VIX: "VIX",
+  FTSE: "FTSE100",
+  DAX: "DAX40",
+  CAC: "CAC40",
+  N225: "NIKKEI225",
+  HSI: "HANGSENG",
 };
 
 const TV_SYMBOLS = {
@@ -41,6 +55,16 @@ const TV_SYMBOLS = {
   "BRENT/USD": "NYMEX:BRN1!",
   "NATURAL_GAS/USD": "NYMEX:NG1!",
   "COPPER/USD": "COMEX:HG1!",
+  DJI: "DJ:DJI",
+  IXIC: "NASDAQ:IXIC",
+  SPX: "SP:SPX",
+  RUT: "TVC:RUT",
+  VIX: "TVC:VIX",
+  FTSE: "TVC:UKX",
+  DAX: "XETR:DAX",
+  CAC: "EURONEXT:PX1",
+  N225: "TVC:NI225",
+  HSI: "HSI:HSI",
   AAPL: "NASDAQ:AAPL",
   MSFT: "NASDAQ:MSFT",
   NVDA: "NASDAQ:NVDA",
@@ -87,10 +111,27 @@ function normalizeMarket(market = "forex-majors") {
   const key = String(market || "forex-majors")
     .trim()
     .toLowerCase();
-  if (key === "forex") return "forex-majors";
-  if (key === "forex-major") return "forex-majors";
-  if (key === "global-index") return "global-index";
-  return SYMBOL_GROUPS[key] ? key : "forex-majors";
+
+  const aliases = {
+    forex: "forex-majors",
+    "forex-major": "forex-majors",
+    "forex-majors": "forex-majors",
+    "forex-cross": "forex-cross",
+    metal: "metals",
+    metals: "metals",
+    commodity: "commodities",
+    commodities: "commodities",
+    "global-index": "global-index",
+    "global-indices": "global-index",
+    indices: "global-index",
+    index: "global-index",
+    "us-stock": "us-stocks",
+    "us-stocks": "us-stocks",
+    "us-etf": "us-etfs",
+    "us-etfs": "us-etfs",
+  };
+
+  return SYMBOL_GROUPS[aliases[key] || key] ? aliases[key] || key : "forex-majors";
 }
 
 function safeNum(v) {
@@ -124,18 +165,24 @@ function score(changePercent, volume) {
 }
 
 function displayName(symbol) {
-  return String(symbol).replace("/", "");
+  return DISPLAY_NAMES[symbol] || String(symbol).replace("/", "");
 }
 
 function toRow(symbol, quote = {}, market) {
-  if (!quote || quote.status === "error" || quote.code || quote.message) return null;
+  if (!quote || quote.status === "error" || quote.code || quote.message) {
+    console.log(`⚠️ TWELVE SYMBOL SKIPPED => ${market} | ${symbol} | ${quote?.message || "Invalid response"}`);
+    return null;
+  }
 
   const price = safeNum(quote.close || quote.price || quote.last || 0);
   const previousClose = safeNum(quote.previous_close || quote.prev_close || 0);
   const changePercent = quote.percent_change !== undefined ? safeNum(quote.percent_change) : previousClose ? ((price - previousClose) / previousClose) * 100 : 0;
   const volume = safeNum(quote.volume || 0);
 
-  if (!symbol || !price) return null;
+  if (!symbol || !price) {
+    console.log(`⚠️ TWELVE SYMBOL EMPTY => ${market} | ${symbol}`);
+    return null;
+  }
 
   const tvSymbol = TV_SYMBOLS[symbol] || `NASDAQ:${symbol}`;
 
@@ -206,11 +253,6 @@ async function fetchBatchQuotes(symbols = [], attempt = 1) {
 
 async function fetchTwelveDataRows(market = "forex-majors") {
   market = normalizeMarket(market);
-
-  if (market === "global-index") {
-    console.log("🟡 TwelveData global-index skipped: Coming Soon");
-    return [];
-  }
 
   if (!TWELVE_DATA_API_KEY) {
     console.log("❌ TWELVE_DATA_API_KEY missing");
