@@ -1,55 +1,119 @@
 const MARKET_CACHE = {
-  "crypto-futures": { data: [], updatedAt: null, source: "bybit", status: "idle" },
-  "forex-majors": { data: [], updatedAt: null, source: "twelvedata", status: "idle" },
-  "forex-cross": { data: [], updatedAt: null, source: "twelvedata", status: "idle" },
-  metals: { data: [], updatedAt: null, source: "twelvedata", status: "idle" },
-  commodities: { data: [], updatedAt: null, source: "twelvedata", status: "idle" },
-  "global-index": { data: [], updatedAt: null, source: "twelvedata", status: "idle" },
-  "us-stocks": { data: [], updatedAt: null, source: "twelvedata", status: "idle" },
-  "us-etfs": { data: [], updatedAt: null, source: "twelvedata", status: "idle" },
+  "crypto-futures": { data: [], updatedAt: null, source: "bybit", status: "idle", error: "", message: "" },
+  "crypto-options": { data: [], updatedAt: null, source: "bybit", status: "idle", error: "", message: "" },
+  "forex-majors": { data: [], updatedAt: null, source: "twelvedata", status: "idle", error: "", message: "" },
+  "forex-cross": { data: [], updatedAt: null, source: "twelvedata", status: "idle", error: "", message: "" },
+  metals: { data: [], updatedAt: null, source: "twelvedata", status: "idle", error: "", message: "" },
+  commodities: { data: [], updatedAt: null, source: "twelvedata", status: "idle", error: "", message: "" },
+  "global-index": { data: [], updatedAt: null, source: "coming-soon", status: "coming-soon", error: "", message: "Global Index Coming Soon" },
+  "us-stocks": { data: [], updatedAt: null, source: "twelvedata", status: "idle", error: "", message: "" },
+  "us-etfs": { data: [], updatedAt: null, source: "twelvedata", status: "idle", error: "", message: "" },
 };
 
 function normalizeMarket(market = "future-stock") {
   const key = String(market || "future-stock")
     .trim()
     .toLowerCase();
-  if (key === "forex") return "forex-majors";
-  if (key === "forex-major") return "forex-majors";
-  if (key === "crypto") return "crypto-futures";
-  return key;
+
+  const aliases = {
+    forex: "forex-majors",
+    "forex-major": "forex-majors",
+    "forex-majors": "forex-majors",
+    "forex-cross": "forex-cross",
+    crypto: "crypto-futures",
+    "crypto-future": "crypto-futures",
+    "crypto-futures": "crypto-futures",
+    "crypto-option": "crypto-options",
+    "crypto-options": "crypto-options",
+    options: "crypto-options",
+    metal: "metals",
+    metals: "metals",
+    commodity: "commodities",
+    commodities: "commodities",
+    "global-index": "global-index",
+    "global-indices": "global-index",
+    "us-stock": "us-stocks",
+    "us-stocks": "us-stocks",
+    "us-etf": "us-etfs",
+    "us-etfs": "us-etfs",
+  };
+
+  return aliases[key] || key;
 }
 
 function setMarketData(market, data = [], meta = {}) {
-  market = normalizeMarket(market);
+  const key = normalizeMarket(market);
 
-  if (!MARKET_CACHE[market]) {
-    MARKET_CACHE[market] = { data: [], updatedAt: null, source: meta.source || "unknown", status: "idle" };
+  if (!MARKET_CACHE[key]) {
+    MARKET_CACHE[key] = {
+      data: [],
+      updatedAt: null,
+      source: meta.source || "unknown",
+      status: "idle",
+      error: "",
+      message: "",
+    };
   }
 
-  MARKET_CACHE[market] = {
+  MARKET_CACHE[key] = {
+    ...MARKET_CACHE[key],
     data: Array.isArray(data) ? data : [],
-    updatedAt: new Date().toISOString(),
-    source: meta.source || MARKET_CACHE[market].source || "unknown",
+    updatedAt: meta.updatedAt || new Date().toISOString(),
+    source: meta.source || MARKET_CACHE[key].source || "unknown",
     status: meta.status || "ok",
     error: meta.error || "",
+    message: meta.message || "",
+    responseMs: meta.responseMs || null,
+    count: Array.isArray(data) ? data.length : 0,
   };
 
-  return MARKET_CACHE[market];
+  return MARKET_CACHE[key];
 }
 
 function getMarketData(market) {
-  market = normalizeMarket(market);
-  return MARKET_CACHE[market]?.data || [];
+  const key = normalizeMarket(market);
+  return MARKET_CACHE[key]?.data || [];
 }
 
 function getMarketMeta(market) {
-  market = normalizeMarket(market);
-  return MARKET_CACHE[market] || { data: [], updatedAt: null, source: "unknown", status: "empty" };
+  const key = normalizeMarket(market);
+
+  return (
+    MARKET_CACHE[key] || {
+      data: [],
+      updatedAt: null,
+      source: "unknown",
+      status: "empty",
+      error: "Market not found in cache",
+      message: "",
+      responseMs: null,
+      count: 0,
+    }
+  );
+}
+
+function getMarketSnapshot(market) {
+  const key = normalizeMarket(market);
+  const cache = getMarketMeta(key);
+
+  return {
+    market: key,
+    data: cache.data || [],
+    meta: {
+      updatedAt: cache.updatedAt,
+      source: cache.source,
+      status: cache.status,
+      error: cache.error || "",
+      message: cache.message || "",
+      responseMs: cache.responseMs || null,
+      count: cache.count || (cache.data || []).length,
+    },
+  };
 }
 
 function isGlobalMarket(market) {
-  market = normalizeMarket(market);
-  return Object.prototype.hasOwnProperty.call(MARKET_CACHE, market);
+  const key = normalizeMarket(market);
+  return Object.prototype.hasOwnProperty.call(MARKET_CACHE, key);
 }
 
 function getAllMarketCache() {
@@ -60,6 +124,7 @@ module.exports = {
   setMarketData,
   getMarketData,
   getMarketMeta,
+  getMarketSnapshot,
   isGlobalMarket,
   getAllMarketCache,
   normalizeMarket,

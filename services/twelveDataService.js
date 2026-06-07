@@ -2,54 +2,17 @@ const axios = require("axios");
 
 const TWELVE_DATA_BASE_URL = process.env.TWELVE_DATA_BASE_URL || "https://api.twelvedata.com";
 const TWELVE_DATA_API_KEY = process.env.TWELVE_DATA_API_KEY || "";
-const TWELVE_BATCH_SIZE = Number(process.env.TWELVE_BATCH_SIZE || 25);
+const TWELVE_BATCH_SIZE = Number(process.env.TWELVE_BATCH_SIZE || 20);
+const TWELVE_REQUEST_DELAY_MS = Number(process.env.TWELVE_REQUEST_DELAY_MS || 250);
+const TWELVE_TIMEOUT_MS = Number(process.env.TWELVE_TIMEOUT_MS || 15000);
 
 const SYMBOL_GROUPS = {
   "forex-majors": ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "NZD/USD", "USD/CAD", "USD/CHF"],
   "forex-cross": ["EUR/JPY", "GBP/JPY", "EUR/GBP", "AUD/JPY", "CAD/JPY", "CHF/JPY", "GBP/AUD", "EUR/AUD", "EUR/CAD", "GBP/CAD"],
   metals: ["XAU/USD", "XAG/USD", "XPT/USD", "XPD/USD"],
   commodities: ["WTI/USD", "BRENT/USD", "NATURAL_GAS/USD", "COPPER/USD"],
-  "global-index": ["DJI", "IXIC", "SPX", "RUT", "VIX", "FTSE", "DAX", "CAC", "N225", "HSI"],
   "us-stocks": ["AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "GOOGL", "META", "NFLX", "AMD", "INTC", "COIN", "MSTR", "PLTR", "JPM", "BAC", "V", "MA", "DIS", "BA", "WMT"],
   "us-etfs": ["SPY", "QQQ", "DIA", "IWM", "VTI", "VOO", "XLK", "XLF", "XLE", "XLY", "XLI", "XLV", "GLD", "SLV", "USO", "TLT", "ARKK", "SOXX", "SMH", "HYG"],
-};
-
-const DISPLAY_NAMES = {
-  "EUR/USD": "EURUSD",
-  "GBP/USD": "GBPUSD",
-  "USD/JPY": "USDJPY",
-  "AUD/USD": "AUDUSD",
-  "NZD/USD": "NZDUSD",
-  "USD/CAD": "USDCAD",
-  "USD/CHF": "USDCHF",
-  "EUR/JPY": "EURJPY",
-  "GBP/JPY": "GBPJPY",
-  "EUR/GBP": "EURGBP",
-  "AUD/JPY": "AUDJPY",
-  "CAD/JPY": "CADJPY",
-  "CHF/JPY": "CHFJPY",
-  "GBP/AUD": "GBPAUD",
-  "EUR/AUD": "EURAUD",
-  "EUR/CAD": "EURCAD",
-  "GBP/CAD": "GBPCAD",
-  "XAU/USD": "XAUUSD",
-  "XAG/USD": "XAGUSD",
-  "XPT/USD": "XPTUSD",
-  "XPD/USD": "XPDUSD",
-  "WTI/USD": "WTI CRUDE",
-  "BRENT/USD": "BRENT CRUDE",
-  "NATURAL_GAS/USD": "NATURAL GAS",
-  "COPPER/USD": "COPPER",
-  DJI: "US30",
-  IXIC: "NAS100",
-  SPX: "SPX500",
-  RUT: "RUSSELL2000",
-  VIX: "VIX",
-  FTSE: "FTSE100",
-  DAX: "DAX40",
-  CAC: "CAC40",
-  N225: "NIKKEI225",
-  HSI: "HANGSENG",
 };
 
 const TV_SYMBOLS = {
@@ -78,16 +41,6 @@ const TV_SYMBOLS = {
   "BRENT/USD": "NYMEX:BRN1!",
   "NATURAL_GAS/USD": "NYMEX:NG1!",
   "COPPER/USD": "COMEX:HG1!",
-  DJI: "DJ:DJI",
-  IXIC: "NASDAQ:IXIC",
-  SPX: "SP:SPX",
-  RUT: "TVC:RUT",
-  VIX: "TVC:VIX",
-  FTSE: "TVC:UKX",
-  DAX: "XETR:DAX",
-  CAC: "EURONEXT:PX1",
-  N225: "TVC:NI225",
-  HSI: "HSI:HSI",
   AAPL: "NASDAQ:AAPL",
   MSFT: "NASDAQ:MSFT",
   NVDA: "NASDAQ:NVDA",
@@ -136,29 +89,26 @@ function normalizeMarket(market = "forex-majors") {
     .toLowerCase();
   if (key === "forex") return "forex-majors";
   if (key === "forex-major") return "forex-majors";
+  if (key === "global-index") return "global-index";
   return SYMBOL_GROUPS[key] ? key : "forex-majors";
 }
 
-function safeNum(value) {
-  const n = Number(value);
+function safeNum(v) {
+  const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
 
-function safeTime() {
-  return new Date().toLocaleTimeString("en-IN", { hour12: false });
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function chunkArray(arr = [], size = 25) {
+function chunkArray(arr = [], size = 20) {
   const chunks = [];
   for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
   return chunks;
 }
 
-function getSymbols(market) {
-  return SYMBOL_GROUPS[normalizeMarket(market)] || SYMBOL_GROUPS["forex-majors"];
-}
-
-function twelveSignal(changePercent, volume) {
+function signal(changePercent) {
   const ch = safeNum(changePercent);
   if (ch >= 2) return "STRONG BUY";
   if (ch <= -2) return "STRONG SELL";
@@ -169,28 +119,29 @@ function twelveSignal(changePercent, volume) {
   return "WAIT";
 }
 
-function twelveScore(changePercent, volume) {
-  const moveScore = Math.abs(safeNum(changePercent));
-  const volScore = safeNum(volume) > 0 ? 1 : 0;
-  return Number((moveScore + volScore).toFixed(2));
+function score(changePercent, volume) {
+  return Number((Math.abs(safeNum(changePercent)) + (safeNum(volume) > 0 ? 1 : 0)).toFixed(2));
+}
+
+function displayName(symbol) {
+  return String(symbol).replace("/", "");
 }
 
 function toRow(symbol, quote = {}, market) {
   if (!quote || quote.status === "error" || quote.code || quote.message) return null;
 
-  const price = safeNum(quote.close || quote.price || quote.last || quote.previous_close || 0);
+  const price = safeNum(quote.close || quote.price || quote.last || 0);
   const previousClose = safeNum(quote.previous_close || quote.prev_close || 0);
-  const changePercentRaw = quote.percent_change !== undefined ? safeNum(quote.percent_change) : previousClose ? ((price - previousClose) / previousClose) * 100 : 0;
+  const changePercent = quote.percent_change !== undefined ? safeNum(quote.percent_change) : previousClose ? ((price - previousClose) / previousClose) * 100 : 0;
   const volume = safeNum(quote.volume || 0);
 
   if (!symbol || !price) return null;
 
-  const display = DISPLAY_NAMES[symbol] || symbol;
-  const tvSymbol = TV_SYMBOLS[symbol] || `NASDAQ:${display}`;
+  const tvSymbol = TV_SYMBOLS[symbol] || `NASDAQ:${symbol}`;
 
   return {
     market,
-    symbol: display,
+    symbol: displayName(symbol),
     tradingSymbol: symbol,
     instrumentKey: symbol,
     sourceSymbol: symbol,
@@ -202,24 +153,25 @@ function toRow(symbol, quote = {}, market) {
     strike: 0,
     optionType: "",
     ltp: price,
-    changePercent: Number(changePercentRaw.toFixed(2)),
+    changePercent: Number(changePercent.toFixed(2)),
     oi: 0,
     oiDayLow: 0,
     oiChangePercent: 0,
     volume,
     volumeRatio: volume > 0 ? 1 : 0,
-    signal: twelveSignal(changePercentRaw, volume),
-    score: twelveScore(changePercentRaw, volume),
-    updatedAt: safeTime(),
+    signal: signal(changePercent),
+    tradeCall: signal(changePercent),
+    score: score(changePercent, volume),
+    updatedAt: new Date().toISOString(),
   };
 }
 
-async function fetchBatchQuotes(symbols = []) {
+async function fetchBatchQuotes(symbols = [], attempt = 1) {
   if (!symbols.length) return {};
 
   try {
     const res = await axios.get(`${TWELVE_DATA_BASE_URL}/quote`, {
-      timeout: 15000,
+      timeout: TWELVE_TIMEOUT_MS,
       params: {
         symbol: symbols.join(","),
         apikey: TWELVE_DATA_API_KEY,
@@ -233,13 +185,21 @@ async function fetchBatchQuotes(symbols = []) {
     const data = res.data || {};
 
     if (data.status === "error" || data.code || data.message) {
-      console.log("TWELVE BATCH ERROR =>", symbols.join(","), data.message || JSON.stringify(data));
+      console.log(`⚠️ TWELVE ERROR => ${symbols.join(",")} | ${data.message || JSON.stringify(data)}`);
       return {};
     }
 
     return data;
   } catch (err) {
-    console.log("TWELVE BATCH REQUEST ERROR =>", symbols.join(","), err.response?.data?.message || err.message);
+    const msg = err.response?.data?.message || err.message;
+
+    if (attempt < 2) {
+      console.log(`🔁 TWELVE RETRY => ${symbols.join(",")} | ${msg}`);
+      await sleep(700);
+      return fetchBatchQuotes(symbols, attempt + 1);
+    }
+
+    console.log(`❌ TWELVE REQUEST FAILED => ${symbols.join(",")} | ${msg}`);
     return {};
   }
 }
@@ -247,14 +207,21 @@ async function fetchBatchQuotes(symbols = []) {
 async function fetchTwelveDataRows(market = "forex-majors") {
   market = normalizeMarket(market);
 
-  if (!TWELVE_DATA_API_KEY) {
-    console.log("TWELVE DATA ERROR => TWELVE_DATA_API_KEY missing");
+  if (market === "global-index") {
+    console.log("🟡 TwelveData global-index skipped: Coming Soon");
     return [];
   }
 
-  const symbols = getSymbols(market);
+  if (!TWELVE_DATA_API_KEY) {
+    console.log("❌ TWELVE_DATA_API_KEY missing");
+    return [];
+  }
+
+  const symbols = SYMBOL_GROUPS[market] || SYMBOL_GROUPS["forex-majors"];
   const chunks = chunkArray(symbols, TWELVE_BATCH_SIZE);
   const rows = [];
+
+  console.log(`🌍 TwelveData fetch start => ${market} | Symbols: ${symbols.length} | Batch: ${TWELVE_BATCH_SIZE}`);
 
   for (const part of chunks) {
     const batch = await fetchBatchQuotes(part);
@@ -264,7 +231,11 @@ async function fetchTwelveDataRows(market = "forex-majors") {
       const row = toRow(symbol, quote, market);
       if (row) rows.push(row);
     }
+
+    await sleep(TWELVE_REQUEST_DELAY_MS);
   }
+
+  console.log(`✅ TwelveData fetch done => ${market} | Rows: ${rows.length}/${symbols.length}`);
 
   return rows.sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
 }

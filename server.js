@@ -16,7 +16,7 @@ dotenv.config();
 const scannerRoutes = require("./routes/scannerRoutes");
 const authRoutes = require("./routes/authRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
-// const { startMarketEngine } = require("./services/marketEngine");
+const { startMarketEngine } = require("./services/marketEngine");
 
 const app = express();
 
@@ -88,7 +88,7 @@ const PORT = process.env.PORT || 5001;
 
 const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 BR30 Market Scanner Backend running on port ${PORT}`);
-  // startMarketEngine();
+  startMarketEngine();
 });
 
 server.on("error", (err) => {
