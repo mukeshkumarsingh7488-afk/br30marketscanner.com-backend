@@ -1,17 +1,9 @@
 const axios = require("axios");
 const { BASE_URL, ACCESS_TOKEN } = require("../config/upstoxConfig");
 
-const UPSTOX_TIMEOUT_MS = Number(process.env.UPSTOX_TIMEOUT_MS || 30000);
-const UPSTOX_CHUNK_SIZE = Number(process.env.UPSTOX_CHUNK_SIZE || 40);
-const UPSTOX_CHUNK_DELAY_MS = Number(process.env.UPSTOX_CHUNK_DELAY_MS || 350);
-const UPSTOX_RETRY_DELAY_MS = Number(process.env.UPSTOX_RETRY_DELAY_MS || 1200);
-const UPSTOX_MAX_RETRIES = Number(process.env.UPSTOX_MAX_RETRIES || 3);
-
-let quoteQueue = Promise.resolve();
-
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: UPSTOX_TIMEOUT_MS,
+  timeout: 30000,
   headers: {
     Accept: "application/json",
     Authorization: `Bearer ${ACCESS_TOKEN}`,
@@ -23,7 +15,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function chunkArray(arr = [], size = UPSTOX_CHUNK_SIZE) {
+function chunkArray(arr = [], size = 80) {
   const chunks = [];
   for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
   return chunks;
@@ -44,19 +36,12 @@ function getErrorMessage(error) {
   return error?.response?.data?.message || error?.response?.data?.errors?.[0]?.message || error?.response?.data?.error || error.message || "Upstox API failed";
 }
 
-function isRetryable(error) {
-  const status = error?.response?.status;
-  return error?.code === "ECONNABORTED" || error?.code === "ETIMEDOUT" || status === 408 || status === 429 || status >= 500 || !status;
-}
-
-async function getQuoteChunk(part = [], attempt = 1) {
-  if (!part.length) return {};
+async function getQuoteChunk(chunk = [], attempt = 1) {
+  if (!chunk.length) return {};
 
   try {
     const res = await api.get("/market-quote/quotes", {
-      params: {
-        instrument_key: part.join(","),
-      },
+      params: { instrument_key: chunk.join(",") },
     });
 
     return res.data?.data || {};
@@ -64,57 +49,15 @@ async function getQuoteChunk(part = [], attempt = 1) {
     const status = error?.response?.status;
     const msg = getErrorMessage(error);
 
-    console.log(`UPSTOX CHUNK ERROR => attempt ${attempt}/${UPSTOX_MAX_RETRIES} | size ${part.length} | status ${status || "NO_STATUS"} | ${msg}`);
+    console.log(`UPSTOX CHUNK ERROR => attempt ${attempt} | size ${chunk.length} | status ${status || "NO_STATUS"} | ${msg}`);
 
-    if (attempt < UPSTOX_MAX_RETRIES && isRetryable(error)) {
-      await sleep(UPSTOX_RETRY_DELAY_MS * attempt);
-      return getQuoteChunk(part, attempt + 1);
+    if (attempt < 3 && (error.code === "ECONNABORTED" || status === 429 || status >= 500 || !status)) {
+      await sleep(1000 * attempt);
+      return getQuoteChunk(chunk, attempt + 1);
     }
 
     throw error;
   }
-}
-
-async function fetchQuotesSequential(keys = []) {
-  const chunks = chunkArray(keys);
-  let finalData = {};
-
-  console.log(`UPSTOX QUOTE START => totalKeys ${keys.length} | chunkSize ${UPSTOX_CHUNK_SIZE} | chunks ${chunks.length}`);
-
-  for (let i = 0; i < chunks.length; i++) {
-    const part = chunks[i];
-
-    try {
-      const data = await getQuoteChunk(part);
-      finalData = { ...finalData, ...(data || {}) };
-
-      console.log(`UPSTOX CHUNK DONE => ${i + 1}/${chunks.length} | received ${Object.keys(data || {}).length}/${part.length}`);
-    } catch (error) {
-      console.log(`UPSTOX QUOTE ERROR => chunk ${i + 1}/${chunks.length} | ${getErrorMessage(error)}`);
-
-      if (error?.response?.status === 401) {
-        console.log("UPSTOX AUTH ERROR => Access token expired or invalid");
-      }
-
-      if (error?.response?.status === 429) {
-        console.log("UPSTOX RATE LIMIT => Too many requests");
-      }
-    }
-
-    if (i < chunks.length - 1) {
-      await sleep(UPSTOX_CHUNK_DELAY_MS);
-    }
-  }
-
-  console.log(`UPSTOX QUOTE DONE => received ${Object.keys(finalData).length}/${keys.length}`);
-
-  return finalData;
-}
-
-async function runQueued(task) {
-  const run = quoteQueue.then(task, task);
-  quoteQueue = run.catch(() => {});
-  return run;
 }
 
 async function getFullMarketQuotes(instrumentKeys = []) {
@@ -126,7 +69,30 @@ async function getFullMarketQuotes(instrumentKeys = []) {
   const keys = cleanKeys(instrumentKeys);
   if (!keys.length) return {};
 
-  return runQueued(() => fetchQuotesSequential(keys));
+  const chunks = chunkArray(keys, 80);
+  let finalData = {};
+
+  console.log(`UPSTOX QUOTE START => totalKeys ${keys.length} | chunks ${chunks.length}`);
+
+  for (let i = 0; i < chunks.length; i++) {
+    const part = chunks[i];
+
+    try {
+      const data = await getQuoteChunk(part);
+      finalData = { ...finalData, ...(data || {}) };
+    } catch (error) {
+      console.log(`UPSTOX QUOTE ERROR => chunk ${i + 1}/${chunks.length} |`, getErrorMessage(error));
+
+      if (error?.response?.status === 401) console.log("UPSTOX AUTH ERROR => Access token expired or invalid");
+      if (error?.response?.status === 429) console.log("UPSTOX RATE LIMIT => Too many requests");
+    }
+
+    await sleep(150);
+  }
+
+  console.log(`UPSTOX QUOTE DONE => received ${Object.keys(finalData).length}/${keys.length}`);
+
+  return finalData;
 }
 
 module.exports = {
