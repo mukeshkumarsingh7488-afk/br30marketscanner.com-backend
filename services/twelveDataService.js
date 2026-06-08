@@ -11,7 +11,7 @@ const SYMBOL_GROUPS = {
   "forex-cross": ["EUR/JPY", "GBP/JPY", "EUR/GBP", "AUD/JPY", "CAD/JPY", "CHF/JPY", "GBP/AUD", "EUR/AUD", "EUR/CAD", "GBP/CAD", "EUR/CHF", "AUD/CAD", "AUD/NZD", "AUD/CHF", "NZD/JPY", "NZD/CAD", "NZD/CHF", "CAD/CHF", "GBP/CHF", "GBP/NZD"],
   metals: ["XAU/USD", "XAG/USD", "XPT/USD", "XPD/USD", "HINDCOPPER", "600362", "000878", "NATIONALUM", "MAANALU", "NICK", "NIKL", "NIC", "GMKN"],
   commodities: ["WTI/USD", "BRENT", "BRNG", "BRNB", "BOIL", "KOLD", "NGSP", "USO", "UNG", "GLD", "SLV"],
-  "global-index": ["UKX", "AEX", "DAX", "CAC40"],
+  "global-index": ["FTSE", "AEX", "GDAXI", "FCHI"],
   "us-stocks": [
     "AAPL",
     "MSFT",
@@ -120,9 +120,11 @@ const DISPLAY_NAMES = {
   BRNB: "BRENT BLOOMBERG",
   BOIL: "NAT GAS BULL",
   KOLD: "NAT GAS BEAR",
-  NGAS: "NATURAL GAS",
   NGSP: "NATURAL GAS GBp",
-  NGASL: "NATURAL GAS USD",
+  USO: "US OIL FUND",
+  UNG: "US NAT GAS FUND",
+  GLD: "GOLD ETF",
+  SLV: "SILVER ETF",
   HINDCOPPER: "HIND COPPER",
   600362: "JIANGXI COPPER",
   "000878": "YUNNAN COPPER",
@@ -136,18 +138,6 @@ const DISPLAY_NAMES = {
   GDAXI: "DAX40",
   FCHI: "CAC40",
   AEX: "AEX",
-  FTSEMIB: "ITALY40",
-  "000001": "SSE COMPOSITE",
-  "000300": "CSI300",
-  399001: "SZSE COMPONENT",
-  399006: "CHINEXT",
-  399300: "CSI300 SZSE",
-  399106: "SZSE COMPOSITE",
-  399330: "SHENZHEN100",
-  399905: "CSI500",
-  SET: "THAILAND SET",
-  SET50: "THAILAND SET50",
-  SET100: "THAILAND SET100",
 };
 
 const TV_SYMBOLS = {
@@ -184,24 +174,21 @@ const TV_SYMBOLS = {
   "XPD/USD": "OANDA:XPDUSD",
   "WTI/USD": "NYMEX:CL1!",
   BRENT: "LSE:BRNT",
-  BRNT: "LSE:BRNT",
   BRNG: "LSE:BRNG",
   BRNB: "LSE:BRNB",
   BOIL: "AMEX:BOIL",
   KOLD: "AMEX:KOLD",
-  NGAS: "LSE:NGAS",
   NGSP: "LSE:NGSP",
-  NGASL: "CBOE:NGASL",
   USO: "AMEX:USO",
   UNG: "AMEX:UNG",
+  GLD: "AMEX:GLD",
+  SLV: "AMEX:SLV",
   HINDCOPPER: "NSE:HINDCOPPER",
   600362: "SSE:600362",
   "000878": "SZSE:000878",
   NATIONALUM: "NSE:NATIONALUM",
   MAANALU: "NSE:MAANALU",
-  ALUM: "LSE:ALUM",
   NICK: "LSE:NICK",
-  NICKL: "CBOE:NICKL",
   NIKL: "PSE:NIKL",
   NIC: "ASX:NIC",
   GMKN: "MOEX:GMKN",
@@ -209,18 +196,6 @@ const TV_SYMBOLS = {
   GDAXI: "TVC:DAX",
   FCHI: "TVC:CAC40",
   AEX: "EURONEXT:AEX",
-  FTSEMIB: "INDEX:FTSEMIB",
-  "000001": "SSE:000001",
-  "000300": "SSE:000300",
-  399001: "SZSE:399001",
-  399006: "SZSE:399006",
-  399300: "SZSE:399300",
-  399106: "SZSE:399106",
-  399330: "SZSE:399330",
-  399905: "SZSE:399905",
-  SET: "SET:SET",
-  SET50: "SET:SET50",
-  SET100: "SET:SET100",
   AAPL: "NASDAQ:AAPL",
   MSFT: "NASDAQ:MSFT",
   NVDA: "NASDAQ:NVDA",
@@ -283,8 +258,6 @@ const TV_SYMBOLS = {
   XLY: "AMEX:XLY",
   XLI: "AMEX:XLI",
   XLV: "AMEX:XLV",
-  GLD: "AMEX:GLD",
-  SLV: "AMEX:SLV",
   TLT: "NASDAQ:TLT",
   ARKK: "AMEX:ARKK",
   SOXX: "NASDAQ:SOXX",
@@ -309,10 +282,13 @@ const TV_SYMBOLS = {
   LQD: "AMEX:LQD",
   JNK: "AMEX:JNK",
   BIL: "AMEX:BIL",
-  UKX: "TVC:UKX",
-  DAX: "TVC:DAX",
-  CAC40: "TVC:CAC40",
-  AEX: "EURONEXT:AEX",
+};
+
+const API_SYMBOLS = {
+  FTSE: "FTSE",
+  GDAXI: "GDAXI",
+  FCHI: "FCHI",
+  AEX: "AEX",
 };
 
 function normalizeMarket(market = "forex-majors") {
@@ -357,12 +333,10 @@ function chunkArray(arr = [], size = 20) {
 
 function signal(changePercent) {
   const ch = safeNum(changePercent);
-  if (ch >= 2) return "STRONG BUY";
-  if (ch <= -2) return "STRONG SELL";
-  if (ch >= 1) return "BUY";
-  if (ch <= -1) return "SELL";
-  if (ch >= 0.3) return "WATCH BUY";
-  if (ch <= -0.3) return "WATCH SELL";
+  if (ch >= 2) return "BUY";
+  if (ch <= -2) return "SELL";
+  if (ch >= 1) return "WATCH BUY";
+  if (ch <= -1) return "WATCH SELL";
   return "WAIT";
 }
 
@@ -372,6 +346,10 @@ function score(changePercent, volume) {
 
 function displayName(symbol) {
   return DISPLAY_NAMES[symbol] || String(symbol).replace("/", "");
+}
+
+function resolveQuote(batch = {}, symbol = "", apiSymbol = "", partLength = 1) {
+  return batch[apiSymbol] || batch[symbol] || batch[String(apiSymbol).replace("/", "")] || batch[String(symbol).replace("/", "")] || (partLength === 1 && !batch.status ? batch : null);
 }
 
 function toRow(symbol, quote = {}, market) {
@@ -406,6 +384,7 @@ function toRow(symbol, quote = {}, market) {
     strike: 0,
     optionType: "",
     ltp: price,
+    previousClose,
     changePercent: Number(changePercent.toFixed(2)),
     oi: 0,
     oiDayLow: 0,
@@ -469,9 +448,7 @@ async function fetchTwelveDataRows(market = "forex-majors") {
     for (let i = 0; i < part.length; i++) {
       const symbol = part[i];
       const apiSymbol = apiPart[i];
-
-      const quote = batch[apiSymbol] || batch[symbol] || batch[String(apiSymbol).replace("/", "")] || batch[String(symbol).replace("/", "")] || (part.length === 1 ? batch : null);
-
+      const quote = resolveQuote(batch, symbol, apiSymbol, part.length);
       const row = toRow(symbol, quote, market);
       if (row) rows.push(row);
     }
