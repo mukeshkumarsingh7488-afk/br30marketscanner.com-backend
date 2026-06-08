@@ -8,8 +8,8 @@ let cryptoRunning = false;
 let twelveWsFallbackRunning = false;
 let twelveRestOnlyRunning = false;
 
-const TWELVE_WS_MARKETS = ["forex-majors", "forex-cross", "metals", "commodities", "us-stocks", "us-etfs"];
-const TWELVE_REST_ONLY_MARKETS = ["global-index"];
+const TWELVE_WS_MARKETS = ["forex-majors", "forex-cross", "metals", "commodities", "global-index", "us-stocks", "us-etfs"];
+const TWELVE_REST_ONLY_MARKETS = [];
 
 const INTERVALS = {
   crypto: Number(process.env.CRYPTO_REFRESH_MS || 3000),
