@@ -158,11 +158,13 @@ function getEquityScore(move, volume) {
   return Number((Math.abs(move) + volumeBoost).toFixed(2));
 }
 
-function getMoveOnlySignal(move, buyLevel = 1, watchLevel = 0.5) {
+function getMoveOnlySignal(move, buyLevel = 2, watchLevel = 1) {
   if (move >= buyLevel) return "BUY";
   if (move <= -buyLevel) return "SELL";
-  if (move >= watchLevel) return "WATCH BUY";
-  if (move <= -watchLevel) return "WATCH SELL";
+
+  if (move >= watchLevel && move < buyLevel) return "WATCH BUY";
+  if (move <= -watchLevel && move > -buyLevel) return "WATCH SELL";
+
   return "WAIT";
 }
 
