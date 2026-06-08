@@ -475,4 +475,11 @@ async function fetchTwelveDataRows(market = "forex-majors") {
   return rows.sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
 }
 
-module.exports = { fetchTwelveDataRows };
+module.exports = {
+  fetchTwelveDataRows,
+  SYMBOL_GROUPS,
+  DISPLAY_NAMES,
+  TV_SYMBOLS,
+  normalizeMarket,
+  toRow,
+};

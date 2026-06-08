@@ -1,6 +1,7 @@
 const { setMarketData, getMarketMeta } = require("./marketCache");
 const { fetchBybitCryptoRows, fetchBybitCryptoOptionRows } = require("./bybitService");
 const { fetchTwelveDataRows } = require("./twelveDataService");
+const { startTwelveDataWs, isTwelveWsHealthy, getTwelveWsHealth } = require("./twelveDataWsService");
 
 let started = false;
 let cryptoRunning = false;
@@ -10,7 +11,7 @@ const TWELVE_MARKETS = ["forex-majors", "forex-cross", "metals", "commodities", 
 
 const INTERVALS = {
   crypto: Number(process.env.CRYPTO_REFRESH_MS || 3000),
-  twelve: Number(process.env.TWELVE_REFRESH_MS || 15000),
+  twelveFallbackCheck: Number(process.env.TWELVE_FALLBACK_CHECK_MS || 10000),
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -144,16 +145,17 @@ async function updateTwelveMarket(market) {
   const startedAt = Date.now();
   const rows = await fetchTwelveDataRows(market);
 
-  updateCache(market, rows, {
-    source: "twelvedata",
+  updateCachePreserveOnEmpty(market, rows, {
+    source: "twelvedata-rest",
     responseMs: Date.now() - startedAt,
-    error: "No TwelveData rows",
+    error: "No TwelveData REST rows",
+    message: "REST fallback",
   });
 }
 
-async function updateAllTwelveMarkets() {
+async function updateAllTwelveMarkets(reason = "manual") {
   if (twelveRunning) {
-    console.log(`⏳ [${nowTime()}] TwelveData update skipped: previous update still running`);
+    console.log(`⏳ [${nowTime()}] TwelveData REST skipped: previous REST cycle still running`);
     return;
   }
 
@@ -161,15 +163,30 @@ async function updateAllTwelveMarkets() {
   const startedAt = Date.now();
 
   try {
+    console.log(`🛡️ [${nowTime()}] TwelveData REST fallback starting | Reason: ${reason}`);
+
     for (const market of TWELVE_MARKETS) {
-      await safeRun(market, () => updateTwelveMarket(market));
+      await safeRun(`twelve-rest-${market}`, () => updateTwelveMarket(market));
       await sleep(Number(process.env.TWELVE_MARKET_DELAY_MS || 150));
     }
 
-    console.log(`🌍 [${nowTime()}] TwelveData cycle completed | Markets: ${TWELVE_MARKETS.length} | ${Date.now() - startedAt}ms`);
+    console.log(`🌍 [${nowTime()}] TwelveData REST cycle completed | Markets: ${TWELVE_MARKETS.length} | ${Date.now() - startedAt}ms`);
   } finally {
     twelveRunning = false;
   }
+}
+
+function runTwelveFallbackIfNeeded() {
+  const health = typeof getTwelveWsHealth === "function" ? getTwelveWsHealth() : {};
+  const healthy = isTwelveWsHealthy();
+
+  if (healthy) {
+    console.log(`✅ [${nowTime()}] TwelveData WS healthy, REST fallback skipped`);
+    return;
+  }
+
+  console.log(`🛡️ [${nowTime()}] TwelveData WS stale/down, running REST fallback | ${JSON.stringify(health)}`);
+  safeRun("twelve-rest-fallback", () => updateAllTwelveMarkets("ws-stale-or-down"));
 }
 
 function startMarketEngine() {
@@ -182,23 +199,26 @@ function startMarketEngine() {
 
   console.log("🚀 BR30 Market Engine Starting...");
   console.log(`⚡ Crypto Refresh: ${INTERVALS.crypto}ms`);
-  console.log(`⚡ TwelveData Refresh: ${INTERVALS.twelve}ms`);
+  console.log(`⚡ TwelveData WS Primary: ${String(process.env.TWELVE_WS_ENABLED || "false").toLowerCase() === "true" ? "enabled" : "disabled"}`);
+  console.log(`🛡️ TwelveData REST Fallback Check: ${INTERVALS.twelveFallbackCheck}ms`);
   console.log("✅ Indian Market / Upstox untouched");
   console.log("✅ Crypto Futures => Bybit");
   console.log("✅ Crypto Options => Controlled by ENABLE_CRYPTO_OPTIONS");
-  console.log("✅ Forex/Metals/Commodities/US Stocks/US ETFs => TwelveData");
-  console.log("✅ Global Index => TwelveData");
+  console.log("✅ Forex/Metals/Commodities/US Stocks/US ETFs => TwelveData WS + REST fallback");
+  console.log("✅ Global Index => TwelveData WS + REST fallback");
+
+  startTwelveDataWs();
 
   safeRun("crypto-first-load", updateCrypto);
-  safeRun("twelve-first-load", updateAllTwelveMarkets);
+  safeRun("twelve-first-load", () => updateAllTwelveMarkets("first-load-cache-seed"));
 
   setInterval(() => {
     safeRun("crypto-interval", updateCrypto);
   }, INTERVALS.crypto);
 
   setInterval(() => {
-    safeRun("twelve-interval", updateAllTwelveMarkets);
-  }, INTERVALS.twelve);
+    runTwelveFallbackIfNeeded();
+  }, INTERVALS.twelveFallbackCheck);
 
   console.log("✅ BR30 Market Engine Started Successfully");
 }

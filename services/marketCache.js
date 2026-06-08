@@ -120,6 +120,54 @@ function getAllMarketCache() {
   return MARKET_CACHE;
 }
 
+function upsertMarketRow(market, row = {}, meta = {}) {
+  const key = normalizeMarket(market);
+
+  if (!MARKET_CACHE[key]) {
+    MARKET_CACHE[key] = {
+      data: [],
+      updatedAt: null,
+      source: meta.source || "unknown",
+      status: "idle",
+      error: "",
+      message: "",
+    };
+  }
+
+  const data = Array.isArray(MARKET_CACHE[key].data) ? MARKET_CACHE[key].data : [];
+  const id = row.instrumentKey || row.tradingSymbol || row.symbol || row.sourceSymbol;
+
+  if (!id) return MARKET_CACHE[key];
+
+  const index = data.findIndex((x) => {
+    const xid = x.instrumentKey || x.tradingSymbol || x.symbol || x.sourceSymbol;
+    return xid === id;
+  });
+
+  const nextRow = {
+    ...(index >= 0 ? data[index] : {}),
+    ...row,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (index >= 0) data[index] = nextRow;
+  else data.push(nextRow);
+
+  MARKET_CACHE[key] = {
+    ...MARKET_CACHE[key],
+    data: data.sort((a, b) => Number(b.score || 0) - Number(a.score || 0)),
+    updatedAt: new Date().toISOString(),
+    source: meta.source || MARKET_CACHE[key].source || "websocket",
+    status: meta.status || "ok",
+    error: meta.error || "",
+    message: meta.message || "",
+    responseMs: meta.responseMs || null,
+    count: data.length,
+  };
+
+  return MARKET_CACHE[key];
+}
+
 module.exports = {
   setMarketData,
   getMarketData,
@@ -128,4 +176,5 @@ module.exports = {
   isGlobalMarket,
   getAllMarketCache,
   normalizeMarket,
+  upsertMarketRow,
 };
