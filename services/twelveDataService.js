@@ -11,7 +11,7 @@ const SYMBOL_GROUPS = {
   "forex-cross": ["EUR/JPY", "GBP/JPY", "EUR/GBP", "AUD/JPY", "CAD/JPY", "CHF/JPY", "GBP/AUD", "EUR/AUD", "EUR/CAD", "GBP/CAD", "EUR/CHF", "AUD/CAD", "AUD/NZD", "AUD/CHF", "NZD/JPY", "NZD/CAD", "NZD/CHF", "CAD/CHF", "GBP/CHF", "GBP/NZD"],
   metals: ["XAU/USD", "XAG/USD", "XPT/USD", "XPD/USD", "HINDCOPPER", "600362", "000878", "NATIONALUM", "MAANALU", "NICK", "NIKL", "NIC", "GMKN"],
   commodities: ["WTI/USD", "BRENT", "BRNG", "BRNB", "BOIL", "KOLD", "NGSP", "USO", "UNG", "GLD", "SLV"],
-  "global-index": ["FTSE", "AEX", "000001", "000300"],
+  "global-index": ["UKX", "AEX", "DAX", "CAC40"],
   "us-stocks": [
     "AAPL",
     "MSFT",
@@ -309,6 +309,10 @@ const TV_SYMBOLS = {
   LQD: "AMEX:LQD",
   JNK: "AMEX:JNK",
   BIL: "AMEX:BIL",
+  UKX: "TVC:UKX",
+  DAX: "TVC:DAX",
+  CAC40: "TVC:CAC40",
+  AEX: "EURONEXT:AEX",
 };
 
 function normalizeMarket(market = "forex-majors") {
@@ -459,10 +463,15 @@ async function fetchTwelveDataRows(market = "forex-majors") {
   console.log(`🌍 TwelveData fetch start => ${market} | Symbols: ${symbols.length} | Batch: ${TWELVE_BATCH_SIZE}`);
 
   for (const part of chunks) {
-    const batch = await fetchBatchQuotes(part);
+    const apiPart = part.map((s) => API_SYMBOLS[s] || s);
+    const batch = await fetchBatchQuotes(apiPart);
 
-    for (const symbol of part) {
-      const quote = batch[symbol] || batch[symbol.replace("/", "")] || (part.length === 1 ? batch : null);
+    for (let i = 0; i < part.length; i++) {
+      const symbol = part[i];
+      const apiSymbol = apiPart[i];
+
+      const quote = batch[apiSymbol] || batch[symbol] || batch[String(apiSymbol).replace("/", "")] || batch[String(symbol).replace("/", "")] || (part.length === 1 ? batch : null);
+
       const row = toRow(symbol, quote, market);
       if (row) rows.push(row);
     }
