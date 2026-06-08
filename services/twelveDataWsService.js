@@ -13,7 +13,7 @@ let reconnectTimer = null;
 let lastTickAt = 0;
 let connectedAt = null;
 
-const WS_MARKETS = ["forex-majors", "forex-cross", "metals", "commodities", "global-index", "us-stocks", "us-etfs"];
+const WS_MARKETS = ["forex-majors", "forex-cross", "metals", "commodities"];
 
 function nowTime() {
   return new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
