@@ -73,8 +73,15 @@ function buildWsRow(tick = {}) {
   const price = safeNum(tick.price || tick.close || tick.last || tick.p || tick.value || oldRow?.ltp);
   if (!price) return null;
 
-  const previousClose = safeNum(tick.previous_close || tick.prev_close || oldRow?.previousClose || 0);
-  const changePercent = tick.percent_change !== undefined ? safeNum(tick.percent_change) : previousClose ? ((price - previousClose) / previousClose) * 100 : safeNum(oldRow?.changePercent || 0);
+  let previousClose = safeNum(tick.previous_close || tick.prev_close || tick.previousClose || oldRow?.previousClose || 0);
+
+  if (!previousClose) {
+    previousClose = safeNum(oldRow?.basePrice || oldRow?.ltp || price);
+  }
+
+  const basePrice = safeNum(oldRow?.basePrice || previousClose || price);
+
+  const changePercent = tick.percent_change !== undefined ? safeNum(tick.percent_change) : basePrice ? ((price - basePrice) / basePrice) * 100 : 0;
 
   const volume = safeNum(tick.volume || oldRow?.volume || 0);
   const tv = buildTradingView(symbol);
@@ -93,6 +100,7 @@ function buildWsRow(tick = {}) {
     optionType: "",
     ltp: price,
     previousClose,
+    basePrice,
     changePercent: Number(changePercent.toFixed(2)),
     oi: 0,
     oiDayLow: 0,

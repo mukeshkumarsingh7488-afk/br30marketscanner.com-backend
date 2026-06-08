@@ -264,8 +264,9 @@ function normalizeRows(rows = [], market = "future-stock") {
       const volume = num(r.volume);
       const volumeRatio = num(r.volumeRatio) || (volume > 0 ? 1 : 0);
       const fundingRate = num(r.fundingRate);
-      const finalSignal = r.signal || getFinalSignal(market, move, oiChangePercent, volumeRatio, volume, fundingRate);
-      const finalScore = Number.isFinite(Number(r.score)) ? Number(r.score) : getFinalScore(market, move, oiChangePercent, volumeRatio, volume);
+      const isMoveOnlyMarket = ["forex-majors", "forex-cross", "metals", "commodities", "global-index", "us-stocks", "us-etfs"].includes(market);
+      const finalSignal = isMoveOnlyMarket ? getFinalSignal(market, move, oiChangePercent, volumeRatio, volume, fundingRate) : r.signal || getFinalSignal(market, move, oiChangePercent, volumeRatio, volume, fundingRate);
+      const finalScore = isMoveOnlyMarket ? getFinalScore(market, move, oiChangePercent, volumeRatio, volume) : Number.isFinite(Number(r.score)) ? Number(r.score) : getFinalScore(market, move, oiChangePercent, volumeRatio, volume);
 
       return withTradingView({
         market,
