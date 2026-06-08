@@ -1,6 +1,6 @@
 const { getFullMarketQuotes } = require("./upstoxService");
 const { loadInstrumentsByMarket } = require("./instrumentService");
-const { getMarketData, isGlobalMarket, normalizeMarket: normalizeCacheMarket } = require("./marketCache");
+const { getMarketData, isGlobalMarket } = require("./marketCache");
 const { num, signal, score } = require("../utils/marketLogic");
 
 const SCANNER_CACHE = {};
@@ -13,6 +13,7 @@ const MARKET_ALIASES = {
   forex: "forex-majors",
   "forex-major": "forex-majors",
   "forex-majors": "forex-majors",
+  "forex-cross": "forex-cross",
   crypto: "crypto-futures",
   "crypto-future": "crypto-futures",
   "crypto-futures": "crypto-futures",
@@ -26,8 +27,13 @@ const MARKET_ALIASES = {
   "us-etf": "us-etfs",
   "us-etfs": "us-etfs",
   metals: "metals",
+  metal: "metals",
+  "metal-stock": "metal-stocks",
+  "metal-stocks": "metal-stocks",
+  "metals-stock": "metal-stocks",
+  "metals-stocks": "metal-stocks",
   commodities: "commodities",
-  "forex-cross": "forex-cross",
+  commodity: "commodities",
   future: "future-stock",
   futures: "future-stock",
   "stock-future": "future-stock",
@@ -73,9 +79,7 @@ function safeTradingViewSymbol(row = {}) {
   const symbol = cleanSymbol(row.underlyingSymbol || row.symbol || row.tradingSymbol);
   if (!symbol) return "";
 
-  if (market === "crypto-futures") return `BYBIT:${symbol}.P`;
   if (market === "forex-majors" || market === "forex-cross") return `FX:${symbol}`;
-
   if (market === "metals") {
     if (symbol.includes("XAU")) return "OANDA:XAUUSD";
     if (symbol.includes("XAG")) return "OANDA:XAGUSD";
@@ -84,7 +88,7 @@ function safeTradingViewSymbol(row = {}) {
     return `OANDA:${symbol}`;
   }
 
-  if (market === "us-stocks") return row.exchange ? `${row.exchange}:${symbol}` : `NASDAQ:${symbol}`;
+  if (market === "metal-stocks" || market === "us-stocks") return row.exchange ? `${row.exchange}:${symbol}` : `NASDAQ:${symbol}`;
   if (market === "us-etfs") return row.exchange ? `${row.exchange}:${symbol}` : `AMEX:${symbol}`;
 
   if (market === "future-stock" || market === "equity-stock" || market === "index-future") {
@@ -158,24 +162,27 @@ function getEquityScore(move, volume) {
   return Number((Math.abs(move) + volumeBoost).toFixed(2));
 }
 
-function getMoveOnlySignal(move, buyLevel = 2, watchLevel = 1) {
-  if (move >= buyLevel) return "BUY";
-  if (move <= -buyLevel) return "SELL";
-
-  if (move >= watchLevel && move < buyLevel) return "WATCH BUY";
-  if (move <= -watchLevel && move > -buyLevel) return "WATCH SELL";
-
+function getStockMoveSignal(move, volume) {
+  if (move >= 2 && volume > 0) return "BUY";
+  if (move <= -2 && volume > 0) return "SELL";
+  if (move >= 1) return "WATCH BUY";
+  if (move <= -1) return "WATCH SELL";
   return "WAIT";
 }
 
-function getMoveOnlyScore(move) {
-  return Number(Math.abs(move).toFixed(2));
+function getStockMoveScore(move, volume) {
+  const volumeBoost = volume > 0 ? 1 : 0;
+  return Number((Math.abs(move) + volumeBoost).toFixed(2));
 }
 
 function getFinalSignal(market, move, oiChangePercent, volumeRatio, volume, fundingRate = 0) {
   market = normalizeMarket(market);
 
   if (market === "equity-stock") return getEquitySignal(move, volume);
+
+  if (market === "metal-stocks" || market === "us-stocks" || market === "us-etfs") {
+    return getStockMoveSignal(move, volume);
+  }
 
   if (market === "crypto-futures" || market === "crypto-options") {
     if (move >= 2 && oiChangePercent >= 7 && fundingRate > 0) return "BUY Long Build-Up";
@@ -201,7 +208,7 @@ function getFinalSignal(market, move, oiChangePercent, volumeRatio, volume, fund
     return "WAIT";
   }
 
-  if (market === "global-index" || market === "us-stocks" || market === "us-etfs") {
+  if (market === "global-index") {
     if (move >= 2) return "BUY";
     if (move <= -2) return "SELL";
     if (move >= 1) return "WATCH BUY";
@@ -217,8 +224,12 @@ function getFinalScore(market, move, oiChangePercent, volumeRatio, volume) {
 
   if (market === "equity-stock") return getEquityScore(move, volume);
 
-  if (market === "crypto-futures" || market === "crypto-options" || market === "forex-majors" || market === "forex-cross" || market === "metals" || market === "commodities" || market === "global-index" || market === "us-stocks" || market === "us-etfs") {
-    return getMoveOnlyScore(move);
+  if (market === "metal-stocks" || market === "us-stocks" || market === "us-etfs") {
+    return getStockMoveScore(move, volume);
+  }
+
+  if (market === "crypto-futures" || market === "crypto-options" || market === "forex-majors" || market === "forex-cross" || market === "metals" || market === "commodities" || market === "global-index") {
+    return Number(Math.abs(move).toFixed(2));
   }
 
   return score(move, oiChangePercent, volumeRatio);
@@ -279,7 +290,6 @@ function normalizeRows(rows = [], market = "future-stock") {
       const volumeRatio = num(r.volumeRatio) || (volume > 0 ? 1 : 0);
       const fundingRate = num(r.fundingRate);
       const finalSignal = getFinalSignal(market, move, oiChangePercent, volumeRatio, volume, fundingRate);
-
       const finalScore = getFinalScore(market, move, oiChangePercent, volumeRatio, volume);
 
       return withTradingView({
@@ -294,6 +304,7 @@ function normalizeRows(rows = [], market = "future-stock") {
         volumeRatio,
         fundingRate,
         signal: finalSignal,
+        tradeCall: finalSignal,
         score: finalScore,
         updatedAt: r.updatedAt || safeNow(),
       });
@@ -387,6 +398,7 @@ async function buildScanner(type = "all", market = "future-stock") {
       volumeRatio,
       fundingRate,
       signal: finalSignal,
+      tradeCall: finalSignal,
       score: finalScore,
       updatedAt: safeNow(),
     });

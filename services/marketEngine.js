@@ -1,18 +1,15 @@
 const { setMarketData, getMarketMeta } = require("./marketCache");
-const { fetchBybitCryptoRows, fetchBybitCryptoOptionRows } = require("./bybitService");
 const { fetchTwelveDataRows } = require("./twelveDataService");
 const { startTwelveDataWs, isTwelveWsHealthy, getTwelveWsHealth } = require("./twelveDataWsService");
 
 let started = false;
-let cryptoRunning = false;
 let twelveWsFallbackRunning = false;
 let twelveRestOnlyRunning = false;
 
 const TWELVE_WS_MARKETS = ["forex-majors", "forex-cross", "metals", "commodities"];
-const TWELVE_REST_ONLY_MARKETS = ["global-index", "us-stocks", "us-etfs"];
+const TWELVE_REST_ONLY_MARKETS = ["metal-stocks", "us-stocks", "us-etfs"];
 
 const INTERVALS = {
-  crypto: Number(process.env.CRYPTO_REFRESH_MS || 3000),
   twelveFallbackCheck: Number(process.env.TWELVE_FALLBACK_CHECK_MS || 20000),
   twelveRestOnly: Number(process.env.TWELVE_REST_ONLY_REFRESH_MS || 60000),
 };
@@ -74,59 +71,6 @@ function updateCachePreserveOnEmpty(market, rows, meta = {}) {
   });
 
   console.log(`⚠️ [${nowTime()}] ${market} cache empty | Rows: 0 | ${meta.responseMs || 0}ms`);
-}
-
-async function updateCrypto() {
-  if (cryptoRunning) {
-    console.log(`⏳ [${nowTime()}] Crypto update skipped: previous update still running`);
-    return;
-  }
-
-  cryptoRunning = true;
-  const startedAt = Date.now();
-
-  try {
-    const futuresRows = await fetchBybitCryptoRows();
-
-    updateCachePreserveOnEmpty("crypto-futures", futuresRows, {
-      source: "bybit",
-      responseMs: Date.now() - startedAt,
-      error: "Bybit crypto futures fetch failed or empty",
-    });
-
-    if (String(process.env.ENABLE_CRYPTO_OPTIONS || "false").toLowerCase() === "true") {
-      const optionStartedAt = Date.now();
-
-      if (typeof fetchBybitCryptoOptionRows === "function") {
-        const optionRows = await fetchBybitCryptoOptionRows();
-
-        updateCachePreserveOnEmpty("crypto-options", optionRows, {
-          source: "bybit",
-          responseMs: Date.now() - optionStartedAt,
-          error: "No crypto options daily expiry data",
-          message: "Crypto Options Daily Expiry",
-        });
-      }
-    } else {
-      const old = getMarketMeta("crypto-options");
-      if (!old?.data?.length) {
-        setMarketData("crypto-options", [], {
-          source: "bybit",
-          status: "disabled",
-          error: "",
-          message: "Crypto Options disabled",
-          updatedAt: new Date().toISOString(),
-          responseMs: 0,
-        });
-      }
-
-      console.log(`🟡 [${nowTime()}] crypto-options disabled by env`);
-    }
-
-    console.log(`🪙 [${nowTime()}] Crypto cycle completed | ${Date.now() - startedAt}ms`);
-  } finally {
-    cryptoRunning = false;
-  }
 }
 
 async function updateTwelveMarket(market, source = "twelvedata-rest", message = "REST update") {
@@ -209,28 +153,22 @@ function startMarketEngine() {
   started = true;
 
   console.log("🚀 BR30 Market Engine Starting...");
-  console.log(`⚡ Crypto Refresh: ${INTERVALS.crypto}ms`);
   console.log(`⚡ TwelveData WS Primary: ${String(process.env.TWELVE_WS_ENABLED || "false").toLowerCase() === "true" ? "enabled" : "disabled"}`);
   console.log(`🛡️ WS Fallback Check: ${INTERVALS.twelveFallbackCheck}ms`);
   console.log(`🌍 REST-only Refresh: ${INTERVALS.twelveRestOnly}ms`);
   console.log("✅ Indian Market / Upstox untouched");
-  console.log("✅ Crypto Futures => Bybit");
-  console.log("✅ Crypto Options => Controlled by ENABLE_CRYPTO_OPTIONS");
+  console.log("🟡 Crypto Futures/Options => Coming Soon");
+  console.log("🟡 Global Index => Coming Soon");
   console.log("✅ WS Markets => Forex/Metals/Commodities");
-  console.log("✅ REST-only Markets => Global Index/US Stocks/US ETFs");
+  console.log("✅ REST-only Markets => Metal Stocks/US Stocks/US ETFs");
 
   startTwelveDataWs();
 
-  safeRun("crypto-first-load", updateCrypto);
   safeRun("rest-only-first-load", () => updateRestOnlyMarkets("first-load-rest-only-cache-seed"));
 
   setTimeout(() => {
     runTwelveWsFallbackIfNeeded();
   }, 5000);
-
-  setInterval(() => {
-    safeRun("crypto-interval", updateCrypto);
-  }, INTERVALS.crypto);
 
   setInterval(() => {
     runTwelveWsFallbackIfNeeded();
