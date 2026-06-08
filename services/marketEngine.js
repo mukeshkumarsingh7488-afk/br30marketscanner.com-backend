@@ -5,13 +5,16 @@ const { startTwelveDataWs, isTwelveWsHealthy, getTwelveWsHealth } = require("./t
 
 let started = false;
 let cryptoRunning = false;
-let twelveRunning = false;
+let twelveWsFallbackRunning = false;
+let twelveRestOnlyRunning = false;
 
-const TWELVE_MARKETS = ["forex-majors", "forex-cross", "metals", "commodities", "global-index", "us-stocks", "us-etfs"];
+const TWELVE_WS_MARKETS = ["forex-majors", "forex-cross", "metals", "commodities"];
+const TWELVE_REST_ONLY_MARKETS = ["global-index", "us-stocks", "us-etfs"];
 
 const INTERVALS = {
   crypto: Number(process.env.CRYPTO_REFRESH_MS || 3000),
-  twelveFallbackCheck: Number(process.env.TWELVE_FALLBACK_CHECK_MS || 10000),
+  twelveFallbackCheck: Number(process.env.TWELVE_FALLBACK_CHECK_MS || 20000),
+  twelveRestOnly: Number(process.env.TWELVE_REST_ONLY_REFRESH_MS || 60000),
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -26,21 +29,6 @@ async function safeRun(name, fn) {
   } catch (err) {
     console.log(`❌ [${nowTime()}] MARKET ENGINE ERROR [${name}] => ${err.message}`);
   }
-}
-
-function updateCache(market, rows, meta = {}) {
-  const isOk = Array.isArray(rows) && rows.length > 0;
-
-  setMarketData(market, isOk ? rows : [], {
-    source: meta.source || "unknown",
-    status: isOk ? "ok" : "empty",
-    error: isOk ? "" : meta.error || `No ${market} data`,
-    message: meta.message || "",
-    updatedAt: new Date().toISOString(),
-    responseMs: meta.responseMs || null,
-  });
-
-  console.log(`${isOk ? "✅" : "⚠️"} [${nowTime()}] ${market} cache ${isOk ? "updated" : "empty"} | Rows: ${Array.isArray(rows) ? rows.length : 0} | ${meta.responseMs || 0}ms`);
 }
 
 function updateCachePreserveOnEmpty(market, rows, meta = {}) {
@@ -141,52 +129,75 @@ async function updateCrypto() {
   }
 }
 
-async function updateTwelveMarket(market) {
+async function updateTwelveMarket(market, source = "twelvedata-rest", message = "REST update") {
   const startedAt = Date.now();
   const rows = await fetchTwelveDataRows(market);
 
   updateCachePreserveOnEmpty(market, rows, {
-    source: "twelvedata-rest",
+    source,
     responseMs: Date.now() - startedAt,
-    error: "No TwelveData REST rows",
-    message: "REST fallback",
+    error: `No ${market} TwelveData rows`,
+    message,
   });
 }
 
-async function updateAllTwelveMarkets(reason = "manual") {
-  if (twelveRunning) {
-    console.log(`⏳ [${nowTime()}] TwelveData REST skipped: previous REST cycle still running`);
+async function updateWsFallbackMarkets(reason = "ws-stale-or-down") {
+  if (twelveWsFallbackRunning) {
+    console.log(`⏳ [${nowTime()}] WS markets REST fallback skipped: previous fallback still running`);
     return;
   }
 
-  twelveRunning = true;
+  twelveWsFallbackRunning = true;
   const startedAt = Date.now();
 
   try {
-    console.log(`🛡️ [${nowTime()}] TwelveData REST fallback starting | Reason: ${reason}`);
+    console.log(`🛡️ [${nowTime()}] WS markets REST fallback starting | Reason: ${reason}`);
 
-    for (const market of TWELVE_MARKETS) {
-      await safeRun(`twelve-rest-${market}`, () => updateTwelveMarket(market));
-      await sleep(Number(process.env.TWELVE_MARKET_DELAY_MS || 150));
+    for (const market of TWELVE_WS_MARKETS) {
+      await safeRun(`ws-fallback-${market}`, () => updateTwelveMarket(market, "twelvedata-rest-fallback", "WS fallback REST"));
+      await sleep(Number(process.env.TWELVE_MARKET_DELAY_MS || 300));
     }
 
-    console.log(`🌍 [${nowTime()}] TwelveData REST cycle completed | Markets: ${TWELVE_MARKETS.length} | ${Date.now() - startedAt}ms`);
+    console.log(`🌍 [${nowTime()}] WS markets REST fallback completed | Markets: ${TWELVE_WS_MARKETS.length} | ${Date.now() - startedAt}ms`);
   } finally {
-    twelveRunning = false;
+    twelveWsFallbackRunning = false;
   }
 }
 
-function runTwelveFallbackIfNeeded() {
+async function updateRestOnlyMarkets(reason = "rest-only-refresh") {
+  if (twelveRestOnlyRunning) {
+    console.log(`⏳ [${nowTime()}] REST-only markets skipped: previous cycle still running`);
+    return;
+  }
+
+  twelveRestOnlyRunning = true;
+  const startedAt = Date.now();
+
+  try {
+    console.log(`🌍 [${nowTime()}] REST-only markets update starting | Reason: ${reason}`);
+
+    for (const market of TWELVE_REST_ONLY_MARKETS) {
+      await safeRun(`rest-only-${market}`, () => updateTwelveMarket(market, "twelvedata-rest", "REST-only market update"));
+      await sleep(Number(process.env.TWELVE_MARKET_DELAY_MS || 300));
+    }
+
+    console.log(`✅ [${nowTime()}] REST-only markets update completed | Markets: ${TWELVE_REST_ONLY_MARKETS.length} | ${Date.now() - startedAt}ms`);
+  } finally {
+    twelveRestOnlyRunning = false;
+  }
+}
+
+function runTwelveWsFallbackIfNeeded() {
   const health = typeof getTwelveWsHealth === "function" ? getTwelveWsHealth() : {};
   const healthy = isTwelveWsHealthy();
 
   if (healthy) {
-    console.log(`✅ [${nowTime()}] TwelveData WS healthy, REST fallback skipped`);
+    console.log(`✅ [${nowTime()}] TwelveData WS healthy, WS-market REST fallback skipped`);
     return;
   }
 
-  console.log(`🛡️ [${nowTime()}] TwelveData WS stale/down, running REST fallback | ${JSON.stringify(health)}`);
-  safeRun("twelve-rest-fallback", () => updateAllTwelveMarkets("ws-stale-or-down"));
+  console.log(`🛡️ [${nowTime()}] TwelveData WS stale/down, running WS-market REST fallback | ${JSON.stringify(health)}`);
+  safeRun("twelve-ws-market-rest-fallback", () => updateWsFallbackMarkets("ws-stale-or-down"));
 }
 
 function startMarketEngine() {
@@ -200,25 +211,34 @@ function startMarketEngine() {
   console.log("🚀 BR30 Market Engine Starting...");
   console.log(`⚡ Crypto Refresh: ${INTERVALS.crypto}ms`);
   console.log(`⚡ TwelveData WS Primary: ${String(process.env.TWELVE_WS_ENABLED || "false").toLowerCase() === "true" ? "enabled" : "disabled"}`);
-  console.log(`🛡️ TwelveData REST Fallback Check: ${INTERVALS.twelveFallbackCheck}ms`);
+  console.log(`🛡️ WS Fallback Check: ${INTERVALS.twelveFallbackCheck}ms`);
+  console.log(`🌍 REST-only Refresh: ${INTERVALS.twelveRestOnly}ms`);
   console.log("✅ Indian Market / Upstox untouched");
   console.log("✅ Crypto Futures => Bybit");
   console.log("✅ Crypto Options => Controlled by ENABLE_CRYPTO_OPTIONS");
-  console.log("✅ Forex/Metals/Commodities/US Stocks/US ETFs => TwelveData WS + REST fallback");
-  console.log("✅ Global Index => TwelveData WS + REST fallback");
+  console.log("✅ WS Markets => Forex/Metals/Commodities");
+  console.log("✅ REST-only Markets => Global Index/US Stocks/US ETFs");
 
   startTwelveDataWs();
 
   safeRun("crypto-first-load", updateCrypto);
-  safeRun("twelve-first-load", () => updateAllTwelveMarkets("first-load-cache-seed"));
+  safeRun("rest-only-first-load", () => updateRestOnlyMarkets("first-load-rest-only-cache-seed"));
+
+  setTimeout(() => {
+    runTwelveWsFallbackIfNeeded();
+  }, 5000);
 
   setInterval(() => {
     safeRun("crypto-interval", updateCrypto);
   }, INTERVALS.crypto);
 
   setInterval(() => {
-    runTwelveFallbackIfNeeded();
+    runTwelveWsFallbackIfNeeded();
   }, INTERVALS.twelveFallbackCheck);
+
+  setInterval(() => {
+    safeRun("rest-only-interval", () => updateRestOnlyMarkets("rest-only-interval"));
+  }, INTERVALS.twelveRestOnly);
 
   console.log("✅ BR30 Market Engine Started Successfully");
 }
