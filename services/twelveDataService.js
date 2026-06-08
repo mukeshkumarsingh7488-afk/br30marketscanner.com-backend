@@ -226,6 +226,7 @@ const DISPLAY_NAMES = {
   AG: "FIRST MAJESTIC",
   SILV: "SILVERCREST",
   EXK: "ENDEAVOUR SILVER",
+  MAG: "MAG SILVER",
   HL: "HECLA MINING",
   PAAS: "PAN AMERICAN SILVER",
   SSRM: "SSR MINING",
@@ -239,6 +240,7 @@ const DISPLAY_NAMES = {
   IAG: "IAMGOLD",
   EGO: "ELDORADO GOLD",
   NG: "NOVAGOLD",
+  TRQ: "TURQUOISE HILL",
   LAC: "LITHIUM AMERICAS",
   ALB: "ALBEMARLE",
   SQM: "SQM",
@@ -252,7 +254,11 @@ const DISPLAY_NAMES = {
   AEX: "AEX",
 };
 
-const TV_SYMBOLS = {
+const TV_SYMBOLS = {};
+Object.keys(DISPLAY_NAMES).forEach((s) => {
+  TV_SYMBOLS[s] = `NASDAQ:${s}`;
+});
+Object.assign(TV_SYMBOLS, {
   "EUR/USD": "FX:EURUSD",
   "GBP/USD": "FX:GBPUSD",
   "USD/JPY": "FX:USDJPY",
@@ -311,9 +317,7 @@ const TV_SYMBOLS = {
   MAANALU: "NSE:MAANALU",
   ASHAPURMIN: "NSE:ASHAPURMIN",
   ORISSAMINE: "NSE:ORISSAMINE",
-  AA: "NYSE:AA",
   X: "NYSE:X",
-  CLF: "NYSE:CLF",
   NUE: "NYSE:NUE",
   STLD: "NASDAQ:STLD",
   FCX: "NYSE:FCX",
@@ -322,49 +326,19 @@ const TV_SYMBOLS = {
   VALE: "NYSE:VALE",
   RIO: "NYSE:RIO",
   BHP: "NYSE:BHP",
-  MP: "NYSE:MP",
-  CMC: "NYSE:CMC",
-  ATI: "NYSE:ATI",
-  RS: "NYSE:RS",
-  ZEUS: "NASDAQ:ZEUS",
-  TX: "NYSE:TX",
-  MT: "NYSE:MT",
-  GGB: "NYSE:GGB",
-  NEM: "NYSE:NEM",
   GOLD: "NYSE:GOLD",
-  AEM: "NYSE:AEM",
-  KGC: "NYSE:KGC",
   AU: "NYSE:AU",
-  FNV: "NYSE:FNV",
-  WPM: "NYSE:WPM",
-  AG: "NYSE:AG",
-  SILV: "AMEX:SILV",
-  EXK: "NYSE:EXK",
   HL: "NYSE:HL",
   PAAS: "NASDAQ:PAAS",
-  SSRM: "NASDAQ:SSRM",
   BTG: "AMEX:BTG",
-  CDE: "NYSE:CDE",
-  MUX: "NYSE:MUX",
-  SAND: "NYSE:SAND",
-  OR: "NYSE:OR",
-  FSM: "NYSE:FSM",
   SA: "NYSE:SA",
-  IAG: "NYSE:IAG",
   EGO: "NYSE:EGO",
-  NG: "AMEX:NG",
-  LAC: "NYSE:LAC",
-  ALB: "NYSE:ALB",
-  SQM: "NYSE:SQM",
-  PLL: "NASDAQ:PLL",
-  LIT: "AMEX:LIT",
-  URA: "AMEX:URA",
   CCJ: "NYSE:CCJ",
   FTSE: "TVC:UKX",
   GDAXI: "TVC:DAX",
   FCHI: "TVC:CAC40",
   AEX: "EURONEXT:AEX",
-};
+});
 
 const API_SYMBOLS = { FTSE: "FTSE", GDAXI: "GDAXI", FCHI: "FCHI", AEX: "AEX" };
 
@@ -449,7 +423,7 @@ function toRow(symbol, quote = {}, market) {
     return null;
   }
 
-  const tvSymbol = TV_SYMBOLS[symbol] || symbol;
+  const tvSymbol = TV_SYMBOLS[symbol] || `NASDAQ:${symbol}`;
 
   return {
     market,
@@ -481,13 +455,20 @@ function toRow(symbol, quote = {}, market) {
 
 async function fetchBatchQuotes(symbols = [], attempt = 1) {
   if (!symbols.length) return {};
+
   try {
-    const res = await axios.get(`${TWELVE_DATA_BASE_URL}/quote`, { timeout: TWELVE_TIMEOUT_MS, params: { symbol: symbols.join(","), apikey: TWELVE_DATA_API_KEY }, headers: { Accept: "application/json", "User-Agent": "BR30-Market-Scanner/1.0" } });
+    const res = await axios.get(`${TWELVE_DATA_BASE_URL}/quote`, {
+      timeout: TWELVE_TIMEOUT_MS,
+      params: { symbol: symbols.join(","), apikey: TWELVE_DATA_API_KEY },
+      headers: { Accept: "application/json", "User-Agent": "BR30-Market-Scanner/1.0" },
+    });
+
     const data = res.data || {};
     if (data.status === "error" || data.code || data.message) {
       console.log(`⚠️ TWELVE ERROR => ${symbols.join(",")} | ${data.message || JSON.stringify(data)}`);
       return {};
     }
+
     return data;
   } catch (err) {
     const msg = err.response?.data?.message || err.message;
@@ -503,6 +484,7 @@ async function fetchBatchQuotes(symbols = [], attempt = 1) {
 
 async function fetchTwelveDataRows(market = "forex-majors") {
   market = normalizeMarket(market);
+
   if (!TWELVE_DATA_API_KEY) {
     console.log("❌ TWELVE_DATA_API_KEY missing");
     return [];
@@ -530,7 +512,15 @@ async function fetchTwelveDataRows(market = "forex-majors") {
   }
 
   console.log(`✅ TwelveData fetch done => ${market} | Rows: ${rows.length}/${symbols.length}`);
+
   return rows.sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
 }
 
-module.exports = { fetchTwelveDataRows, SYMBOL_GROUPS, DISPLAY_NAMES, TV_SYMBOLS, normalizeMarket, toRow };
+module.exports = {
+  fetchTwelveDataRows,
+  SYMBOL_GROUPS,
+  DISPLAY_NAMES,
+  TV_SYMBOLS,
+  normalizeMarket,
+  toRow,
+};
