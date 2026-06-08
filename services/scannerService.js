@@ -289,7 +289,7 @@ function normalizeRows(rows = [], market = "future-stock") {
 }
 
 async function buildGlobalScanner(type = "all", market = "crypto-futures") {
-  market = normalizeCacheMarket(market);
+  market = normalizeMarket(market);
 
   let rows = getMarketData(market);
   rows = normalizeRows(rows, market);
