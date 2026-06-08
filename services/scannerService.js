@@ -186,15 +186,27 @@ function getFinalSignal(market, move, oiChangePercent, volumeRatio, volume, fund
   }
 
   if (market === "forex-majors" || market === "forex-cross" || market === "metals") {
-    return getMoveOnlySignal(move, 1, 0.5);
+    if (move >= 1) return "BUY";
+    if (move <= -1) return "SELL";
+    if (move >= 0.5) return "WATCH BUY";
+    if (move <= -0.5) return "WATCH SELL";
+    return "WAIT";
   }
 
   if (market === "commodities") {
-    return getMoveOnlySignal(move, 1.5, 0.75);
+    if (move >= 1.5) return "BUY";
+    if (move <= -1.5) return "SELL";
+    if (move >= 0.75) return "WATCH BUY";
+    if (move <= -0.75) return "WATCH SELL";
+    return "WAIT";
   }
 
   if (market === "global-index" || market === "us-stocks" || market === "us-etfs") {
-    return getMoveOnlySignal(move, 2, 1);
+    if (move >= 2) return "BUY";
+    if (move <= -2) return "SELL";
+    if (move >= 1) return "WATCH BUY";
+    if (move <= -1) return "WATCH SELL";
+    return "WAIT";
   }
 
   return signal(move, oiChangePercent, volumeRatio);
@@ -266,9 +278,9 @@ function normalizeRows(rows = [], market = "future-stock") {
       const volume = num(r.volume);
       const volumeRatio = num(r.volumeRatio) || (volume > 0 ? 1 : 0);
       const fundingRate = num(r.fundingRate);
-      const isMoveOnlyMarket = ["forex-majors", "forex-cross", "metals", "commodities", "global-index", "us-stocks", "us-etfs"].includes(market);
-      const finalSignal = isMoveOnlyMarket ? getFinalSignal(market, move, oiChangePercent, volumeRatio, volume, fundingRate) : r.signal || getFinalSignal(market, move, oiChangePercent, volumeRatio, volume, fundingRate);
-      const finalScore = isMoveOnlyMarket ? getFinalScore(market, move, oiChangePercent, volumeRatio, volume) : Number.isFinite(Number(r.score)) ? Number(r.score) : getFinalScore(market, move, oiChangePercent, volumeRatio, volume);
+      const finalSignal = getFinalSignal(market, move, oiChangePercent, volumeRatio, volume, fundingRate);
+
+      const finalScore = getFinalScore(market, move, oiChangePercent, volumeRatio, volume);
 
       return withTradingView({
         market,
