@@ -4,6 +4,7 @@ const { getMarketData, isGlobalMarket } = require("./marketCache");
 const { num, signal, score } = require("../utils/marketLogic");
 
 const SCANNER_CACHE = {};
+const SCANNER_RUNNING = {};
 const CACHE_TTL = 10000;
 const EQUITY_MIN_VOLUME = 2000000;
 
@@ -332,89 +333,100 @@ async function buildScanner(type = "all", market = "future-stock") {
     return SCANNER_CACHE[cacheKey].data;
   }
 
-  let instruments = [];
-  let priceMap = {};
-
-  try {
-    if (["index-option", "equity-stock-option", "future-stock-option"].includes(market)) {
-      const baseMarket = market === "index-option" ? "index-future" : "future-stock";
-      const baseInstruments = await loadInstrumentsByMarket(baseMarket);
-      const baseKeys = baseInstruments.map((s) => s.instrumentKey).filter(Boolean);
-      const baseQuotes = await getQuotesSafe(baseKeys);
-
-      priceMap = baseInstruments.reduce((acc, item) => {
-        const q = getQuoteObject(baseQuotes, item.instrumentKey, item.tradingSymbol);
-        const ltp = num(q.last_price);
-        if (item.symbol && ltp > 0) acc[item.symbol] = ltp;
-        return acc;
-      }, {});
-    }
-
-    instruments = await loadInstrumentsByMarket(market, false, priceMap);
-  } catch (err) {
-    console.log(`LOAD INSTRUMENTS ERROR [${market}] =>`, err.message);
-    instruments = [];
+  if (SCANNER_RUNNING[cacheKey]) {
+    console.log(`⏳ SCANNER SKIPPED => ${cacheKey} previous request still running`);
+    return SCANNER_CACHE[cacheKey]?.data || [];
   }
 
-  const instrumentKeys = instruments.map((s) => s.instrumentKey).filter(Boolean);
-  const quotes = await getQuotesSafe(instrumentKeys);
+  SCANNER_RUNNING[cacheKey] = true;
 
-  let rows = instruments.map((stock) => {
-    const q = getQuoteObject(quotes, stock.instrumentKey, stock.tradingSymbol);
+  try {
+    let instruments = [];
+    let priceMap = {};
 
-    const ltp = num(q.last_price);
-    const netChange = num(q.net_change);
-    const volume = num(q.volume);
-    const oi = num(q.oi);
-    const oiDayLow = num(q.oi_day_low);
-    const fundingRate = num(q.fundingRate || q.funding_rate || stock.fundingRate);
-    const move = calcMovePercent(ltp, netChange);
-    const oiChangePercent = calcOiChangePercent(oi, oiDayLow);
-    const volumeRatio = volume > 0 ? 1 : 0;
-    const finalSignal = getFinalSignal(market, move, oiChangePercent, volumeRatio, volume, fundingRate);
-    const finalScore = getFinalScore(market, move, oiChangePercent, volumeRatio, volume);
+    try {
+      if (["index-option", "equity-stock-option", "future-stock-option"].includes(market)) {
+        const baseMarket = market === "index-option" ? "index-future" : "future-stock";
+        const baseInstruments = await loadInstrumentsByMarket(baseMarket);
+        const baseKeys = baseInstruments.map((s) => s.instrumentKey).filter(Boolean);
+        const baseQuotes = await getQuotesSafe(baseKeys);
 
-    return withTradingView({
-      market,
-      symbol: stock.symbol,
-      name: stock.name || "",
-      sector: stock.sector || "",
-      underlyingSymbol: stock.underlyingSymbol || stock.symbol,
-      tradingSymbol: stock.tradingSymbol,
-      instrumentKey: stock.instrumentKey,
-      tvSymbol: stock.tvSymbol,
-      tradingViewUrl: stock.tradingViewUrl,
-      tradingViewSearchUrl: stock.tradingViewSearchUrl,
-      expiry: stock.expiry,
-      lotSize: stock.lotSize,
-      strike: Number(stock.strike || 0),
-      optionType: String(stock.optionType || "").toUpperCase(),
-      ltp,
-      changePercent: move,
-      oi,
-      oiDayLow,
-      oiChangePercent,
-      volume,
-      volumeRatio,
-      fundingRate,
-      signal: finalSignal,
-      tradeCall: finalSignal,
-      score: finalScore,
-      updatedAt: safeNow(),
+        priceMap = baseInstruments.reduce((acc, item) => {
+          const q = getQuoteObject(baseQuotes, item.instrumentKey, item.tradingSymbol);
+          const ltp = num(q.last_price);
+          if (item.symbol && ltp > 0) acc[item.symbol] = ltp;
+          return acc;
+        }, {});
+      }
+
+      instruments = await loadInstrumentsByMarket(market, false, priceMap);
+    } catch (err) {
+      console.log(`LOAD INSTRUMENTS ERROR [${market}] =>`, err.message);
+      instruments = [];
+    }
+
+    const instrumentKeys = instruments.map((s) => s.instrumentKey).filter(Boolean);
+    const quotes = await getQuotesSafe(instrumentKeys);
+
+    let rows = instruments.map((stock) => {
+      const q = getQuoteObject(quotes, stock.instrumentKey, stock.tradingSymbol);
+
+      const ltp = num(q.last_price);
+      const netChange = num(q.net_change);
+      const volume = num(q.volume);
+      const oi = num(q.oi);
+      const oiDayLow = num(q.oi_day_low);
+      const fundingRate = num(q.fundingRate || q.funding_rate || stock.fundingRate);
+      const move = calcMovePercent(ltp, netChange);
+      const oiChangePercent = calcOiChangePercent(oi, oiDayLow);
+      const volumeRatio = volume > 0 ? 1 : 0;
+      const finalSignal = getFinalSignal(market, move, oiChangePercent, volumeRatio, volume, fundingRate);
+      const finalScore = getFinalScore(market, move, oiChangePercent, volumeRatio, volume);
+
+      return withTradingView({
+        market,
+        symbol: stock.symbol,
+        name: stock.name || "",
+        sector: stock.sector || "",
+        underlyingSymbol: stock.underlyingSymbol || stock.symbol,
+        tradingSymbol: stock.tradingSymbol,
+        instrumentKey: stock.instrumentKey,
+        tvSymbol: stock.tvSymbol,
+        tradingViewUrl: stock.tradingViewUrl,
+        tradingViewSearchUrl: stock.tradingViewSearchUrl,
+        expiry: stock.expiry,
+        lotSize: stock.lotSize,
+        strike: Number(stock.strike || 0),
+        optionType: String(stock.optionType || "").toUpperCase(),
+        ltp,
+        changePercent: move,
+        oi,
+        oiDayLow,
+        oiChangePercent,
+        volume,
+        volumeRatio,
+        fundingRate,
+        signal: finalSignal,
+        tradeCall: finalSignal,
+        score: finalScore,
+        updatedAt: safeNow(),
+      });
     });
-  });
 
-  rows = rows.filter((r) => r.ltp > 0);
-  rows = applyTypeFilter(rows, type);
+    rows = rows.filter((r) => r.ltp > 0);
+    rows = applyTypeFilter(rows, type);
 
-  const result = isOptionMarket(market) ? sortOptionRows(rows) : sortNormalRows(rows);
+    const result = isOptionMarket(market) ? sortOptionRows(rows) : sortNormalRows(rows);
 
-  SCANNER_CACHE[cacheKey] = {
-    time: Date.now(),
-    data: result,
-  };
+    SCANNER_CACHE[cacheKey] = {
+      time: Date.now(),
+      data: result,
+    };
 
-  return result;
+    return result;
+  } finally {
+    SCANNER_RUNNING[cacheKey] = false;
+  }
 }
 
 async function getSummary(market = "future-stock") {
