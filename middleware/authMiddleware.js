@@ -38,7 +38,9 @@ const protect = async (req, res, next) => {
       });
     }
 
-    if (user.role !== "admin") {
+    const isLifetimeAccess = ["admin", "vip"].includes(user.role);
+
+    if (!isLifetimeAccess) {
       const now = new Date();
 
       if (user.subscriptionStatus === "trial" && user.trialEndDate && new Date(user.trialEndDate) < now) {
@@ -86,7 +88,9 @@ const subscriptionRequired = async (req, res, next) => {
       });
     }
 
-    if (user.role === "admin") {
+    const isLifetimeAccess = ["admin", "vip"].includes(user.role);
+
+    if (isLifetimeAccess) {
       return next();
     }
 

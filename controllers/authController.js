@@ -174,7 +174,7 @@ exports.loginUser = async (req, res) => {
     }
 
     if (!user.isVerified) {
-      return res.status(403).json({ success: false, msg: "Email verify karo" });
+      return res.status(403).json({ success: false, msg: "Email verify first" });
     }
 
     if (!user.isApproved) {
@@ -182,8 +182,9 @@ exports.loginUser = async (req, res) => {
     }
 
     const now = new Date();
+    const isLifetimeAccess = ["admin", "vip"].includes(user.role);
 
-    if (user.role !== "admin") {
+    if (!isLifetimeAccess) {
       if (user.subscriptionStatus === "trial" && user.trialEndDate && new Date(user.trialEndDate) < now) {
         user.subscriptionStatus = "expired";
         user.isSubscriptionActive = false;
@@ -223,7 +224,7 @@ exports.loginUser = async (req, res) => {
         lastPaymentDate: user.lastPaymentDate,
         nextBillingDate: user.nextBillingDate,
         totalPayments: user.totalPayments,
-        isSubscriptionActive: user.role === "admin" ? true : user.isSubscriptionActive,
+        isSubscriptionActive: isLifetimeAccess ? true : user.isSubscriptionActive,
         isFoundingMember: user.isFoundingMember,
       },
     });
