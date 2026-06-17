@@ -35,14 +35,35 @@ const getPlanPrice = async () => {
 
 const sendInfinityAccessMails = async (user) => {
   try {
+    const validTill = fmtDate(user.subscriptionEndDate || user.trialEndDate);
+
     await sendMail({
       to: user.email,
       subject: "BR30 Infinity Sniper Access Request Received",
       html: br30BaseIndicatorTemplate({
         name: user.name,
         tradingViewUsername: user.tradingViewUsername || "-",
-        planName: user.planName,
-        subscriptionEndDate: fmtDate(user.subscriptionEndDate || user.trialEndDate),
+        planName: user.planName || "BR30 Market Scanner",
+        subscriptionEndDate: validTill,
+        title: "Access Request Received",
+        statusText: "STATUS : REQUEST PENDING",
+        statusBg: "#ffcc66",
+        statusColor: "#000000",
+        message: `
+          Your BR30 Market Scanner subscription is now active.
+          <br /><br />
+          Your request for <strong style="color:#00ff88;">BR30 Infinity Sniper Indicator</strong> access has been received.
+          <br /><br />
+          Our team will verify your TradingView username and activate your invite-only indicator access soon.
+        `,
+        subtitle: `
+          <p style="margin:24px 0 12px;color:#ffffff;font-size:16px;font-weight:800;">
+            What happens next?
+          </p>
+          <p style="margin:0;color:#cbd5e1;font-size:15px;line-height:26px;">
+            After approval, open TradingView → Chart → Indicators → Invite-only Scripts → BR30 Infinity Sniper.
+          </p>
+        `,
       }),
     });
 
@@ -50,19 +71,36 @@ const sendInfinityAccessMails = async (user) => {
       await sendMail({
         to: process.env.ADMIN_EMAIL,
         subject: "New TradingView Access Request - BR30 Infinity Sniper",
-        html: `
-          <div style="font-family:Arial,sans-serif;line-height:1.6;">
-            <h2>New BR30 Infinity Sniper Access Request</h2>
-            <p><b>Name:</b> ${user.name}</p>
-            <p><b>Email:</b> ${user.email}</p>
-            <p><b>TradingView Username:</b> ${user.tradingViewUsername || "-"}</p>
-            <p><b>Plan:</b> ${user.planName}</p>
-            <p><b>Plan Price:</b> ₹${user.planPrice}</p>
-            <p><b>Valid Till:</b> ${fmtDate(user.subscriptionEndDate || user.trialEndDate)}</p>
-            <p><b>Indicator:</b> ${user.indicatorName || "BR30 Infinity Sniper"}</p>
-            <p><b>Indicator Status:</b> ${user.indicatorAccess || "pending"}</p>
-          </div>
-        `,
+        html: br30BaseIndicatorTemplate({
+          name: "Admin",
+          tradingViewUsername: user.tradingViewUsername || "-",
+          planName: user.planName || "BR30 Market Scanner",
+          subscriptionEndDate: validTill,
+          title: "New Access Request",
+          statusText: "STATUS : ADMIN ACTION REQUIRED",
+          statusBg: "#ffcc66",
+          statusColor: "#000000",
+          message: `
+            New BR30 Infinity Sniper access request received.
+            <br /><br />
+            <strong style="color:#ffffff;">User Name:</strong> ${user.name}<br />
+            <strong style="color:#ffffff;">User Email:</strong> ${user.email}<br />
+            <strong style="color:#ffffff;">TradingView Username:</strong> ${user.tradingViewUsername || "-"}<br />
+            <strong style="color:#ffffff;">Plan:</strong> ${user.planName || "-"}<br />
+            <strong style="color:#ffffff;">Plan Price:</strong> ₹${user.planPrice || 0}<br />
+            <strong style="color:#ffffff;">Valid Till:</strong> ${validTill}<br />
+            <strong style="color:#ffffff;">Indicator:</strong> ${user.indicatorName || "BR30 Infinity Sniper"}<br />
+            <strong style="color:#ffffff;">Indicator Status:</strong> ${user.indicatorAccess || "pending"}
+          `,
+          subtitle: `
+            <p style="margin:24px 0 12px;color:#ffffff;font-size:16px;font-weight:800;">
+              Admin Action:
+            </p>
+            <p style="margin:0;color:#cbd5e1;font-size:15px;line-height:26px;">
+              Copy the TradingView username, add access manually in TradingView, then mark this user as Active from BR30 Admin Dashboard.
+            </p>
+          `,
+        }),
       });
     }
   } catch (mailErr) {
