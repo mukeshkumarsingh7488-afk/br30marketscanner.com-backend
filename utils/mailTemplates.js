@@ -441,8 +441,6 @@ const br30BaseIndicatorTemplate = ({ name = "Trader", tradingViewUsername = "-",
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   </head>
-
-  <body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#050505;">
     <table width="100%" cellpadding="0" cellspacing="0" style="padding:15px;background:#050505;">
       <tr>
         <td align="center">
@@ -575,22 +573,42 @@ const indicatorExpiredTemplate = (user = {}) => {
     planName: user.planName || "BR30 Market Scanner",
     subscriptionEndDate: fmtDateMail(user.subscriptionEndDate || user.trialEndDate),
     title: "Indicator Access Expired",
-    statusText: "STATUS : ACCESS REMOVED",
+    statusText: "STATUS : ACCESS EXPIRED",
     statusBg: "#ff4d4d",
     statusColor: "#fff",
     message: `
-      Your <strong style="color:#00ff88;">BR30 Infinity Sniper Indicator</strong> access has been removed.
+      Your <strong style="color:#00ff88;">BR30 Infinity Sniper Indicator</strong> access has been expired.
       <br /><br />
       This usually happens when your free trial or paid subscription has ended.
     `,
     subtitle: `
-      <p style="margin:24px 0 12px;color:#ffffff;font-size:16px;font-weight:800;">
-        Renew access:
-      </p>
-      <p style="margin:0;color:#cbd5e1;font-size:15px;line-height:26px;">
-        Subscribe again to reactivate BR30 Market Scanner and BR30 Infinity Sniper access.
-      </p>
-    `,
+  <p style="margin:24px 0 12px;color:#ffffff;font-size:16px;font-weight:800;">
+    Renew access:
+  </p>
+
+  <p style="margin:0;color:#cbd5e1;font-size:15px;line-height:26px;">
+    Subscribe again to reactivate BR30 Market Scanner and BR30 Infinity Sniper access.
+  </p>
+
+  <div style="margin-top:22px;">
+    <a
+      href="https://br30marketscanner-com-frontade.vercel.app/subscription"
+      target="_blank"
+      style="
+        display:inline-block;
+        background:#00ff88;
+        color:#000;
+        text-decoration:none;
+        padding:14px 28px;
+        border-radius:12px;
+        font-size:15px;
+        font-weight:900;
+      "
+    >
+      Renew Subscription
+    </a>
+  </div>
+`,
   });
 };
 

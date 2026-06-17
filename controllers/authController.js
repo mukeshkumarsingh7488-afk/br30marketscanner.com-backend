@@ -771,7 +771,7 @@ exports.updateIndicatorAccess = async (req, res) => {
       }
 
       if (indicatorAccess === "expired") {
-        subject = "BR30 Infinity Sniper Access Removed";
+        subject = "BR30 Infinity Sniper Access Expired";
         html = indicatorExpiredTemplate(user);
       }
 
