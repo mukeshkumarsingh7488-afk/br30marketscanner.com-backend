@@ -809,3 +809,46 @@ exports.updateIndicatorAccess = async (req, res) => {
     });
   }
 };
+
+exports.updateUserRole = async (req, res) => {
+  try {
+    const { role } = req.body;
+
+    const allowedRoles = ["student", "admin", "vip"];
+
+    if (!allowedRoles.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        msg: "Invalid role",
+      });
+    }
+
+    if (String(req.user._id) === String(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        msg: "You cannot change your own role",
+      });
+    }
+
+    const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true }).select("-password -otp -resetOtp");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        msg: "User not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      msg: "User role updated",
+      user,
+    });
+  } catch (error) {
+    console.log("UPDATE USER ROLE ERROR =>", error.message);
+    res.status(500).json({
+      success: false,
+      msg: "Role update failed",
+    });
+  }
+};

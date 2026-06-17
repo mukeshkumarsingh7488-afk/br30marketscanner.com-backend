@@ -19,6 +19,7 @@ const {
   updateUserSubscription,
   updateIndicatorAccess,
   sendBulkMail,
+  updateUserRole,
 } = require("../controllers/authController");
 
 const { protect, adminOnly } = require("../middleware/authMiddleware");
@@ -50,5 +51,6 @@ router.put("/admin/indicator-access/:id", protect, adminOnly, updateIndicatorAcc
 router.post("/admin/bulk-mail", protect, adminOnly, sendBulkMail);
 
 router.delete("/admin/delete/:id", protect, adminOnly, deleteUser);
+router.put("/admin/role/:id", protect, adminOnly, updateUserRole);
 
 module.exports = router;
