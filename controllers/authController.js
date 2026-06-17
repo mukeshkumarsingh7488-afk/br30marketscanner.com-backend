@@ -3,7 +3,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const sendMail = require("../utils/mailHelper");
 const Payment = require("../models/Payment");
-const { otpTemplate, forgotPasswordTemplate, approvedTemplate, unapprovedTemplate, bulkMailTemplate } = require("../utils/mailTemplates");
+const { otpTemplate, forgotPasswordTemplate, approvedTemplate, unapprovedTemplate, bulkMailTemplate, indicatorApprovedTemplate, indicatorExpiredTemplate, indicatorRejectedTemplate } = require("../utils/mailTemplates");
 
 const pendingRegisters = new Map();
 
@@ -18,16 +18,31 @@ const cleanEmail = (email) =>
 
 exports.registerUser = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
-    const emailClean = cleanEmail(email);
+    const { name, email, password, tradingViewUsername } = req.body;
 
-    if (!name || !emailClean || !password) {
-      return res.status(400).json({ success: false, msg: "All fields required" });
+    const emailClean = cleanEmail(email);
+    const tvUsername = String(tradingViewUsername || "").trim();
+
+    if (!name || !emailClean || !password || !tvUsername) {
+      return res.status(400).json({
+        success: false,
+        msg: "All fields required including TradingView username",
+      });
+    }
+
+    if (tvUsername.length < 3) {
+      return res.status(400).json({
+        success: false,
+        msg: "Enter valid TradingView username",
+      });
     }
 
     const exists = await User.findOne({ email: emailClean });
     if (exists) {
-      return res.status(400).json({ success: false, msg: "Email already registered" });
+      return res.status(400).json({
+        success: false,
+        msg: "Email already registered",
+      });
     }
 
     const otp = makeOtp();
@@ -41,15 +56,22 @@ exports.registerUser = async (req, res) => {
     pendingRegisters.set(emailClean, {
       name: name.trim(),
       email: emailClean,
+      tradingViewUsername: tvUsername,
       password,
       otp,
       otpExpires: Date.now() + 10 * 60 * 1000,
     });
 
-    res.json({ success: true, msg: "OTP sent successfully" });
+    res.json({
+      success: true,
+      msg: "OTP sent successfully",
+    });
   } catch (error) {
     console.log("REGISTER OTP ERROR =>", error.message);
-    res.status(500).json({ success: false, msg: error.message || "OTP mail failed" });
+    res.status(500).json({
+      success: false,
+      msg: error.message || "OTP mail failed",
+    });
   }
 };
 
@@ -59,26 +81,39 @@ exports.verifyOtp = async (req, res) => {
     const emailClean = cleanEmail(email);
 
     if (!emailClean || !otp) {
-      return res.status(400).json({ success: false, msg: "All fields required" });
+      return res.status(400).json({
+        success: false,
+        msg: "All fields required",
+      });
     }
 
     const pending = pendingRegisters.get(emailClean);
 
     if (!pending) {
-      return res.status(400).json({ success: false, msg: "Register again" });
+      return res.status(400).json({
+        success: false,
+        msg: "Register again",
+      });
     }
 
     if (pending.otp !== otp || pending.otpExpires < Date.now()) {
-      return res.status(400).json({ success: false, msg: "Invalid OTP" });
+      return res.status(400).json({
+        success: false,
+        msg: "Invalid OTP",
+      });
     }
 
     const exists = await User.findOne({ email: emailClean });
     if (exists) {
       pendingRegisters.delete(emailClean);
-      return res.status(400).json({ success: false, msg: "Email already registered" });
+      return res.status(400).json({
+        success: false,
+        msg: "Email already registered",
+      });
     }
 
     const isMasterAdmin = emailClean === cleanEmail(process.env.MASTER_ADMIN_EMAIL);
+
     const now = new Date();
     const trialEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
@@ -86,14 +121,18 @@ exports.verifyOtp = async (req, res) => {
       name: pending.name,
       email: pending.email,
       password: await bcrypt.hash(pending.password, 10),
+
       isVerified: true,
       isApproved: isMasterAdmin,
       role: isMasterAdmin ? "admin" : "user",
+      isBlocked: false,
+
       subscriptionStatus: isMasterAdmin ? "active" : "trial",
       trialStartDate: now,
       trialEndDate: isMasterAdmin ? null : trialEnd,
       subscriptionStartDate: isMasterAdmin ? now : null,
       subscriptionEndDate: isMasterAdmin ? new Date("2099-12-31") : null,
+
       planName: isMasterAdmin ? "Admin Lifetime Access" : "Free Trial",
       planPrice: 0,
       autoPayEnabled: false,
@@ -104,17 +143,29 @@ exports.verifyOtp = async (req, res) => {
       totalPayments: 0,
       isSubscriptionActive: true,
       isFoundingMember: false,
+
+      tradingViewUsername: pending.tradingViewUsername,
+      indicatorName: "BR30 Infinity Sniper",
+      indicatorAccess: isMasterAdmin ? "active" : "pending",
+      indicatorApprovedAt: isMasterAdmin ? now : null,
+      indicatorExpiredAt: null,
+      indicatorRejectedAt: null,
+      indicatorMailSentAt: null,
+      indicatorAccessBy: isMasterAdmin ? "system" : "",
     });
 
     pendingRegisters.delete(emailClean);
 
     res.json({
       success: true,
-      msg: isMasterAdmin ? "Register success" : "Register success. Approval pending.",
+      msg: isMasterAdmin ? "Register success" : "Register success. Indicator access pending.",
     });
   } catch (error) {
     console.log("VERIFY OTP ERROR =>", error.message);
-    res.status(500).json({ success: false, msg: "OTP verify failed" });
+    res.status(500).json({
+      success: false,
+      msg: "OTP verify failed",
+    });
   }
 };
 
@@ -160,25 +211,40 @@ exports.loginUser = async (req, res) => {
     const emailClean = cleanEmail(email);
 
     if (!emailClean || !password) {
-      return res.status(400).json({ success: false, msg: "All fields required" });
+      return res.status(400).json({
+        success: false,
+        msg: "All fields required",
+      });
     }
 
     const user = await User.findOne({ email: emailClean });
     if (!user) {
-      return res.status(400).json({ success: false, msg: "Invalid email or password" });
+      return res.status(400).json({
+        success: false,
+        msg: "Invalid email or password",
+      });
     }
 
     const match = await bcrypt.compare(password, user.password);
     if (!match) {
-      return res.status(400).json({ success: false, msg: "Invalid email or password" });
+      return res.status(400).json({
+        success: false,
+        msg: "Invalid email or password",
+      });
     }
 
     if (!user.isVerified) {
-      return res.status(403).json({ success: false, msg: "Email verify first" });
+      return res.status(403).json({
+        success: false,
+        msg: "Email verify first",
+      });
     }
 
     if (!user.isApproved) {
-      return res.status(403).json({ success: false, msg: "Approval pending" });
+      return res.status(403).json({
+        success: false,
+        msg: "Approval pending",
+      });
     }
 
     const now = new Date();
@@ -188,12 +254,24 @@ exports.loginUser = async (req, res) => {
       if (user.subscriptionStatus === "trial" && user.trialEndDate && new Date(user.trialEndDate) < now) {
         user.subscriptionStatus = "expired";
         user.isSubscriptionActive = false;
+
+        if (user.indicatorAccess === "active") {
+          user.indicatorAccess = "expired";
+          user.indicatorExpiredAt = now;
+        }
+
         await user.save();
       }
 
       if (user.subscriptionStatus === "active" && user.subscriptionEndDate && new Date(user.subscriptionEndDate) < now) {
         user.subscriptionStatus = "expired";
         user.isSubscriptionActive = false;
+
+        if (user.indicatorAccess === "active") {
+          user.indicatorAccess = "expired";
+          user.indicatorExpiredAt = now;
+        }
+
         await user.save();
       }
     }
@@ -211,6 +289,7 @@ exports.loginUser = async (req, res) => {
         role: user.role || "user",
         isVerified: user.isVerified,
         isApproved: user.isApproved,
+
         subscriptionStatus: user.subscriptionStatus,
         trialStartDate: user.trialStartDate,
         trialEndDate: user.trialEndDate,
@@ -226,11 +305,23 @@ exports.loginUser = async (req, res) => {
         totalPayments: user.totalPayments,
         isSubscriptionActive: isLifetimeAccess ? true : user.isSubscriptionActive,
         isFoundingMember: user.isFoundingMember,
+
+        tradingViewUsername: user.tradingViewUsername,
+        indicatorName: user.indicatorName || "BR30 Infinity Sniper",
+        indicatorAccess: user.indicatorAccess || "pending",
+        indicatorApprovedAt: user.indicatorApprovedAt,
+        indicatorExpiredAt: user.indicatorExpiredAt,
+        indicatorRejectedAt: user.indicatorRejectedAt,
+        indicatorMailSentAt: user.indicatorMailSentAt,
+        indicatorAccessBy: user.indicatorAccessBy,
       },
     });
   } catch (error) {
     console.log("LOGIN ERROR =>", error.message);
-    res.status(500).json({ success: false, msg: "Login failed" });
+    res.status(500).json({
+      success: false,
+      msg: "Login failed",
+    });
   }
 };
 
@@ -622,6 +713,114 @@ exports.sendBulkMail = async (req, res) => {
     res.status(500).json({
       success: false,
       msg: "Bulk mail failed",
+    });
+  }
+};
+
+exports.updateIndicatorAccess = async (req, res) => {
+  try {
+    const { indicatorAccess, sendMail = true } = req.body;
+
+    const allowed = ["pending", "active", "expired", "rejected"];
+
+    if (!allowed.includes(indicatorAccess)) {
+      return res.status(400).json({
+        success: false,
+        msg: "Invalid indicator access status",
+      });
+    }
+
+    const update = {
+      indicatorAccess,
+      indicatorName: "BR30 Infinity Sniper",
+      indicatorAccessBy: req.user?.email || req.user?.name || "admin",
+    };
+
+    if (indicatorAccess === "active") {
+      update.indicatorApprovedAt = new Date();
+      update.indicatorExpiredAt = null;
+      update.indicatorRejectedAt = null;
+    }
+
+    if (indicatorAccess === "expired") {
+      update.indicatorExpiredAt = new Date();
+    }
+
+    if (indicatorAccess === "rejected") {
+      update.indicatorRejectedAt = new Date();
+    }
+
+    const user = await User.findByIdAndUpdate(req.params.id, update, {
+      new: true,
+    }).select("-password -otp -resetOtp");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        msg: "User not found",
+      });
+    }
+
+    if (sendMail) {
+      let subject = "";
+      let message = "";
+
+      if (indicatorAccess === "active") {
+        subject = "BR30 Infinity Sniper Access Approved ✅";
+        message = `
+          <h2>BR30 Infinity Sniper Access Approved ✅</h2>
+          <p>Hello ${user.name},</p>
+          <p>Your BR30 Infinity Sniper indicator access is now active.</p>
+          <p><b>TradingView Username:</b> ${user.tradingViewUsername}</p>
+          <p><b>Indicator Name:</b> ${user.indicatorName}</p>
+          <p>Open TradingView → Chart → Indicators → Invite-only scripts → BR30 Infinity Sniper.</p>
+        `;
+      }
+
+      if (indicatorAccess === "expired") {
+        subject = "BR30 Infinity Sniper Access Expired";
+        message = `
+          <h2>BR30 Infinity Sniper Access Expired</h2>
+          <p>Hello ${user.name},</p>
+          <p>Your BR30 Infinity Sniper indicator access has been removed because your plan/trial has ended.</p>
+        `;
+      }
+
+      if (indicatorAccess === "rejected") {
+        subject = "BR30 Infinity Sniper Access Rejected";
+        message = `
+          <h2>BR30 Infinity Sniper Access Rejected</h2>
+          <p>Hello ${user.name},</p>
+          <p>Your TradingView username could not be approved. Please contact BR30 support.</p>
+        `;
+      }
+
+      if (subject && message) {
+        try {
+          await sendMail({
+            to: user.email,
+            subject,
+            html: message,
+          });
+
+          user.indicatorMailSentAt = new Date();
+          await user.save();
+        } catch (mailErr) {
+          console.log("INDICATOR MAIL ERROR =>", mailErr.message);
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      msg: "Indicator access updated",
+      user,
+    });
+  } catch (error) {
+    console.log("INDICATOR ACCESS ERROR =>", error.message);
+    res.status(500).json({
+      success: false,
+      msg: "Indicator access update failed",
     });
   }
 };

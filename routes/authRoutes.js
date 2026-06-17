@@ -1,5 +1,25 @@
 const express = require("express");
-const { registerUser, verifyOtp, resendOtp, loginUser, forgotPassword, resetPassword, getMe, getAllUsers, getPendingUsers, approveUser, unapproveUser, deleteUser, getAdminStats, blockUser, unblockUser, updateUserSubscription, sendBulkMail } = require("../controllers/authController");
+
+const {
+  registerUser,
+  verifyOtp,
+  resendOtp,
+  loginUser,
+  forgotPassword,
+  resetPassword,
+  getMe,
+  getAllUsers,
+  getPendingUsers,
+  approveUser,
+  unapproveUser,
+  deleteUser,
+  getAdminStats,
+  blockUser,
+  unblockUser,
+  updateUserSubscription,
+  updateIndicatorAccess,
+  sendBulkMail,
+} = require("../controllers/authController");
 
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 
@@ -23,7 +43,9 @@ router.put("/admin/unapprove/:id", protect, adminOnly, unapproveUser);
 
 router.put("/admin/block/:id", protect, adminOnly, blockUser);
 router.put("/admin/unblock/:id", protect, adminOnly, unblockUser);
+
 router.put("/admin/subscription/:id", protect, adminOnly, updateUserSubscription);
+router.put("/admin/indicator-access/:id", protect, adminOnly, updateIndicatorAccess);
 
 router.post("/admin/bulk-mail", protect, adminOnly, sendBulkMail);
 

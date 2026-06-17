@@ -1,12 +1,23 @@
 const User = require("../models/User");
 const Payment = require("../models/Payment");
 const { createPaytmSubscription, verifyPaytmChecksum } = require("../services/paytmService");
+
 const sendMail = require("../utils/mailHelper");
-const { br30InfinityAccessTemplate } = require("../utils/mailTemplates");
+
+const { br30BaseIndicatorTemplate } = require("../utils/mailTemplates");
 
 const MONTHLY_PRICE = 2199;
 const FOUNDING_PRICE = 999;
 const FOUNDING_LIMIT = 100;
+
+const fmtDate = (d) => {
+  if (!d) return "-";
+  try {
+    return new Date(d).toLocaleDateString("en-IN");
+  } catch {
+    return "-";
+  }
+};
 
 const getPlanPrice = async () => {
   const paidUsers = await User.countDocuments({
@@ -27,11 +38,11 @@ const sendInfinityAccessMails = async (user) => {
     await sendMail({
       to: user.email,
       subject: "BR30 Infinity Sniper Access Request Received",
-      html: br30InfinityAccessTemplate({
+      html: br30BaseIndicatorTemplate({
         name: user.name,
         tradingViewUsername: user.tradingViewUsername || "-",
         planName: user.planName,
-        subscriptionEndDate: user.subscriptionEndDate ? new Date(user.subscriptionEndDate).toLocaleDateString("en-IN") : "-",
+        subscriptionEndDate: fmtDate(user.subscriptionEndDate || user.trialEndDate),
       }),
     });
 
@@ -47,8 +58,9 @@ const sendInfinityAccessMails = async (user) => {
             <p><b>TradingView Username:</b> ${user.tradingViewUsername || "-"}</p>
             <p><b>Plan:</b> ${user.planName}</p>
             <p><b>Plan Price:</b> ₹${user.planPrice}</p>
-            <p><b>Valid Till:</b> ${user.subscriptionEndDate ? new Date(user.subscriptionEndDate).toLocaleDateString("en-IN") : "-"}</p>
-            <p><b>Status:</b> ${user.tradingViewAccessStatus || "pending"}</p>
+            <p><b>Valid Till:</b> ${fmtDate(user.subscriptionEndDate || user.trialEndDate)}</p>
+            <p><b>Indicator:</b> ${user.indicatorName || "BR30 Infinity Sniper"}</p>
+            <p><b>Indicator Status:</b> ${user.indicatorAccess || "pending"}</p>
           </div>
         `,
       });
@@ -61,7 +73,10 @@ const sendInfinityAccessMails = async (user) => {
 exports.getSubscriptionStatus = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select("-password -otp -resetOtp");
-    if (!user) return res.status(404).json({ success: false, msg: "User not found" });
+
+    if (!user) {
+      return res.status(404).json({ success: false, msg: "User not found" });
+    }
 
     if (user.role === "admin" || user.role === "vip") {
       return res.json({
@@ -77,13 +92,24 @@ exports.getSubscriptionStatus = async (req, res) => {
     if (user.subscriptionStatus === "trial" && user.trialEndDate && new Date(user.trialEndDate) < now) {
       user.subscriptionStatus = "expired";
       user.isSubscriptionActive = false;
+
+      if (user.indicatorAccess === "active") {
+        user.indicatorAccess = "expired";
+        user.indicatorExpiredAt = now;
+      }
+
       await user.save();
     }
 
     if (user.subscriptionStatus === "active" && user.subscriptionEndDate && new Date(user.subscriptionEndDate) < now) {
       user.subscriptionStatus = "expired";
       user.isSubscriptionActive = false;
-      user.tradingViewAccessStatus = "expired";
+
+      if (user.indicatorAccess === "active") {
+        user.indicatorAccess = "expired";
+        user.indicatorExpiredAt = now;
+      }
+
       await user.save();
     }
 
@@ -100,7 +126,10 @@ exports.getSubscriptionStatus = async (req, res) => {
     });
   } catch (error) {
     console.log("SUBSCRIPTION STATUS ERROR =>", error.message);
-    res.status(500).json({ success: false, msg: "Subscription status failed" });
+    res.status(500).json({
+      success: false,
+      msg: "Subscription status failed",
+    });
   }
 };
 
@@ -109,22 +138,33 @@ exports.createSubscriptionOrder = async (req, res) => {
     const { tradingViewUsername } = req.body;
 
     const user = await User.findById(req.user._id);
-    if (!user) return res.status(404).json({ success: false, msg: "User not found" });
 
-    if (user.role === "admin" || user.role === "vip") {
-      return res.json({ success: true, msg: "Admin/VIP does not need subscription" });
+    if (!user) {
+      return res.status(404).json({ success: false, msg: "User not found" });
     }
 
-    if (!tradingViewUsername || !String(tradingViewUsername).trim()) {
+    if (user.role === "admin" || user.role === "vip") {
+      return res.json({
+        success: true,
+        msg: "Admin/VIP does not need subscription",
+      });
+    }
+
+    const tvUsername = String(tradingViewUsername || "").trim();
+
+    if (!tvUsername) {
       return res.status(400).json({
         success: false,
         msg: "TradingView username is required for BR30 Infinity Sniper access",
       });
     }
 
-    user.tradingViewUsername = String(tradingViewUsername).trim();
-    user.tradingViewAccessStatus = "pending";
+    user.tradingViewUsername = tvUsername;
+    user.indicatorAccess = "pending";
     user.indicatorName = "BR30 Infinity Sniper";
+    user.indicatorExpiredAt = null;
+    user.indicatorRejectedAt = null;
+
     await user.save();
 
     const pricing = await getPlanPrice();
@@ -217,7 +257,6 @@ exports.paytmCallback = async (req, res) => {
     }
 
     const paymentDoc = await Payment.findOne({ orderId: ORDERID });
-
     const userId = req.body.CUST_ID || req.body.custId || paymentDoc?.userId;
     const user = await User.findById(userId);
 
@@ -253,9 +292,12 @@ exports.paytmCallback = async (req, res) => {
     user.isSubscriptionActive = true;
     user.isFoundingMember = pricing.isFoundingMember;
 
-    user.tradingViewAccessStatus = "pending";
-    user.tradingViewAccessExpiry = nextBilling;
+    user.indicatorAccess = "pending";
     user.indicatorName = "BR30 Infinity Sniper";
+    user.indicatorApprovedAt = null;
+    user.indicatorExpiredAt = null;
+    user.indicatorRejectedAt = null;
+    user.indicatorMailSentAt = null;
 
     await user.save();
 
@@ -311,7 +353,16 @@ exports.getAllPayments = async (req, res) => {
   try {
     const payments = await Payment.find({}).sort({ createdAt: -1 }).limit(500);
 
-    const totalRevenueAgg = await Payment.aggregate([{ $match: { status: "success" } }, { $group: { _id: null, total: { $sum: "$amount" }, count: { $sum: 1 } } }]);
+    const totalRevenueAgg = await Payment.aggregate([
+      { $match: { status: "success" } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: "$amount" },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
 
     res.json({
       success: true,
@@ -321,7 +372,10 @@ exports.getAllPayments = async (req, res) => {
     });
   } catch (error) {
     console.log("GET PAYMENTS ERROR =>", error.message);
-    res.status(500).json({ success: false, msg: "Payments load failed" });
+    res.status(500).json({
+      success: false,
+      msg: "Payments load failed",
+    });
   }
 };
 
@@ -337,6 +391,68 @@ exports.getUserPayments = async (req, res) => {
     });
   } catch (error) {
     console.log("GET USER PAYMENTS ERROR =>", error.message);
-    res.status(500).json({ success: false, msg: "User payments load failed" });
+    res.status(500).json({
+      success: false,
+      msg: "User payments load failed",
+    });
+  }
+};
+
+// demo route to activate subscription without payment - for testing and support purposes only
+exports.mockActivateSubscription = async (req, res) => {
+  try {
+    const { tradingViewUsername } = req.body;
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        msg: "User not found",
+      });
+    }
+
+    const now = new Date();
+    const nextBilling = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    user.tradingViewUsername = String(tradingViewUsername || user.tradingViewUsername || "").trim();
+
+    user.subscriptionStatus = "active";
+    user.subscriptionStartDate = now;
+    user.subscriptionEndDate = nextBilling;
+
+    user.planName = "BR30 Demo Plan";
+    user.planPrice = 999;
+
+    user.autoPayEnabled = false;
+    user.lastPaymentDate = now;
+    user.nextBillingDate = nextBilling;
+
+    user.totalPayments = Number(user.totalPayments || 0) + 1;
+    user.isSubscriptionActive = true;
+
+    user.indicatorName = "BR30 Infinity Sniper";
+    user.indicatorAccess = "pending";
+
+    user.indicatorApprovedAt = null;
+    user.indicatorExpiredAt = null;
+    user.indicatorRejectedAt = null;
+
+    await user.save();
+
+    await sendInfinityAccessMails(user);
+
+    return res.json({
+      success: true,
+      msg: "Demo subscription activated",
+      user,
+    });
+  } catch (error) {
+    console.log("MOCK SUB ERROR =>", error.message);
+
+    res.status(500).json({
+      success: false,
+      msg: "Mock activation failed",
+    });
   }
 };

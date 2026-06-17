@@ -85,7 +85,7 @@ const userSchema = new mongoose.Schema(
     },
 
     // =========================
-    // TRADINGVIEW ACCESS SYSTEM
+    // INDICATOR ACCESS SYSTEM
     // =========================
 
     tradingViewUsername: {
@@ -94,28 +94,36 @@ const userSchema = new mongoose.Schema(
       default: "",
     },
 
-    tradingViewAccessStatus: {
+    indicatorName: {
+      type: String,
+      default: "BR30 Infinity Sniper",
+    },
+
+    indicatorAccess: {
       type: String,
       enum: ["pending", "active", "expired", "rejected"],
       default: "pending",
     },
 
-    tradingViewAccessGrantedAt: {
+    indicatorApprovedAt: {
       type: Date,
     },
 
-    tradingViewAccessExpiry: {
+    indicatorExpiredAt: {
       type: Date,
     },
 
-    tradingViewAccessBy: {
+    indicatorRejectedAt: {
+      type: Date,
+    },
+
+    indicatorMailSentAt: {
+      type: Date,
+    },
+
+    indicatorAccessBy: {
       type: String,
       default: "",
-    },
-
-    indicatorName: {
-      type: String,
-      default: "BR30 Infinity Sniper",
     },
   },
   { timestamps: true }

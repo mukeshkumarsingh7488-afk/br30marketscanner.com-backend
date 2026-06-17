@@ -411,19 +411,26 @@ const bulkMailTemplate = (name, message) => {
 </html>`;
 };
 
-const br30InfinityAccessTemplate = ({ name = "Trader", tradingViewUsername = "-", planName = "BR30 Market Scanner Monthly Plan", subscriptionEndDate = "-" }) => {
+const fmtDateMail = (d) => {
+  if (!d) return "-";
+  try {
+    return new Date(d).toLocaleDateString("en-IN");
+  } catch {
+    return "-";
+  }
+};
+
+const br30BaseIndicatorTemplate = ({ name = "Trader", tradingViewUsername = "-", planName = "BR30 Market Scanner", subscriptionEndDate = "-", title = "", subtitle = "", statusText = "", statusBg = "#00ff88", statusColor = "#000", message = "" }) => {
   const supportEmail = "support.br30trader@gmail.com";
   const supportWhatsapp = "916200986380";
   const dhanReferralLink = "https://join.dhan.co/?invite=ZUFUW59514";
 
-  const emailSubject = encodeURIComponent("BR30 Infinity Sniper Access Support");
-  const emailBody = encodeURIComponent(
-    `Hello BR30 Support Team,\n\nMy BR30 Market Scanner subscription is active.\n\nName: ${name}\nTradingView Username: ${tradingViewUsername}\nPlan: ${planName}\nValid Till: ${subscriptionEndDate}\n\nPlease activate my BR30 Infinity Sniper Indicator access.\n\nThank you.`
-  );
+  const emailSubject = encodeURIComponent("BR30 Infinity Sniper Support");
+  const emailBody = encodeURIComponent(`Hello BR30 Support Team,\n\nName: ${name}\nTradingView Username: ${tradingViewUsername}\nPlan: ${planName}\nValid Till: ${subscriptionEndDate}\n\nI need help with BR30 Infinity Sniper Indicator access.\n\nThank you.`);
 
   const gmailLink = `https://mail.google.com/mail/?view=cm&fs=1&to=${supportEmail}&su=${emailSubject}&body=${emailBody}`;
 
-  const whatsappText = encodeURIComponent(`Hello BR30 Support Team,\n\nMy BR30 Market Scanner subscription is active.\n\nName: ${name}\nTradingView Username: ${tradingViewUsername}\nPlan: ${planName}\nValid Till: ${subscriptionEndDate}\n\nPlease activate my BR30 Infinity Sniper Indicator access.`);
+  const whatsappText = encodeURIComponent(`Hello BR30 Support Team,\n\nName: ${name}\nTradingView Username: ${tradingViewUsername}\nPlan: ${planName}\nValid Till: ${subscriptionEndDate}\n\nI need help with BR30 Infinity Sniper Indicator access.`);
 
   const whatsappLink = `https://wa.me/${supportWhatsapp}?text=${whatsappText}`;
 
@@ -449,21 +456,17 @@ const br30InfinityAccessTemplate = ({ name = "Trader", tradingViewUsername = "-"
 
             <tr>
               <td style="padding:40px 35px;text-align:center;">
-                <h1 style="margin:0;color:#00ff88;font-size:30px;font-weight:900;">BR30 Market Scanner</h1>
-                <h2 style="margin:10px 0 0;color:#ffffff;font-size:22px;font-weight:800;">Subscription Activated</h2>
+                <h1 style="margin:0;color:#00ff88;font-size:30px;font-weight:900;">BR30 Infinity Sniper</h1>
+                <h2 style="margin:10px 0 0;color:#ffffff;font-size:22px;font-weight:800;">${title}</h2>
 
                 <p style="margin:28px 0 10px;color:#ffffff;font-size:18px;">Hello <strong>${name}</strong>,</p>
 
                 <p style="margin:0;color:#cbd5e1;font-size:16px;line-height:28px;">
-                  Your BR30 Market Scanner subscription is now active.
-                  <br />
-                  Your request for <strong style="color:#00ff88;">BR30 Infinity Sniper Indicator</strong> access has been received.
-                  <br /><br />
-                  Our support team will verify your TradingView username and activate your invite-only indicator access soon.
+                  ${message}
                 </p>
 
-                <div style="margin:28px auto 18px;display:inline-block;background:#00ff88;color:#000;padding:10px 22px;border-radius:50px;font-size:14px;font-weight:900;">
-                  STATUS : SUBSCRIPTION ACTIVE
+                <div style="margin:28px auto 18px;display:inline-block;background:${statusBg};color:${statusColor};padding:10px 22px;border-radius:50px;font-size:14px;font-weight:900;">
+                  ${statusText}
                 </div>
 
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:25px;background:#050505;border:1px solid #111;border-radius:16px;padding:18px;text-align:left;">
@@ -476,13 +479,7 @@ const br30InfinityAccessTemplate = ({ name = "Trader", tradingViewUsername = "-"
                   </tr>
                 </table>
 
-                <p style="margin:24px 0 12px;color:#ffffff;font-size:16px;font-weight:800;">
-                  How to use after access activation:
-                </p>
-
-                <p style="margin:0;color:#cbd5e1;font-size:15px;line-height:26px;">
-                  Open TradingView → Indicators → Invite-only Scripts → BR30 Infinity Sniper
-                </p>
+                ${subtitle}
 
                 <div style="margin-top:28px;">
                   <a href="${gmailLink}" target="_blank" style="display:inline-block;background:#00ff88;color:#000;text-decoration:none;padding:14px 24px;border-radius:12px;font-size:15px;font-weight:900;margin:6px;">
@@ -545,4 +542,82 @@ const br30InfinityAccessTemplate = ({ name = "Trader", tradingViewUsername = "-"
 `;
 };
 
-module.exports = { otpTemplate, forgotPasswordTemplate, approvedTemplate, unapprovedTemplate, bulkMailTemplate, br30InfinityAccessTemplate };
+const indicatorApprovedTemplate = (user = {}) => {
+  return br30BaseIndicatorTemplate({
+    name: user.name,
+    tradingViewUsername: user.tradingViewUsername,
+    planName: user.planName || "BR30 Market Scanner",
+    subscriptionEndDate: fmtDateMail(user.subscriptionEndDate || user.trialEndDate),
+    title: "Indicator Access Approved ✅",
+    statusText: "STATUS : INDICATOR ACTIVE",
+    statusBg: "#00ff88",
+    statusColor: "#000",
+    message: `
+      Your <strong style="color:#00ff88;">BR30 Infinity Sniper Indicator</strong> access is now active.
+      <br /><br />
+      You can now open TradingView and use the invite-only indicator from your TradingView account.
+    `,
+    subtitle: `
+      <p style="margin:24px 0 12px;color:#ffffff;font-size:16px;font-weight:800;">
+        How to use:
+      </p>
+      <p style="margin:0;color:#cbd5e1;font-size:15px;line-height:26px;">
+        Open TradingView → Chart → Indicators → Invite-only Scripts → BR30 Infinity Sniper
+      </p>
+    `,
+  });
+};
+
+const indicatorExpiredTemplate = (user = {}) => {
+  return br30BaseIndicatorTemplate({
+    name: user.name,
+    tradingViewUsername: user.tradingViewUsername,
+    planName: user.planName || "BR30 Market Scanner",
+    subscriptionEndDate: fmtDateMail(user.subscriptionEndDate || user.trialEndDate),
+    title: "Indicator Access Expired",
+    statusText: "STATUS : ACCESS REMOVED",
+    statusBg: "#ff4d4d",
+    statusColor: "#fff",
+    message: `
+      Your <strong style="color:#00ff88;">BR30 Infinity Sniper Indicator</strong> access has been removed.
+      <br /><br />
+      This usually happens when your free trial or paid subscription has ended.
+    `,
+    subtitle: `
+      <p style="margin:24px 0 12px;color:#ffffff;font-size:16px;font-weight:800;">
+        Renew access:
+      </p>
+      <p style="margin:0;color:#cbd5e1;font-size:15px;line-height:26px;">
+        Subscribe again to reactivate BR30 Market Scanner and BR30 Infinity Sniper access.
+      </p>
+    `,
+  });
+};
+
+const indicatorRejectedTemplate = (user = {}) => {
+  return br30BaseIndicatorTemplate({
+    name: user.name,
+    tradingViewUsername: user.tradingViewUsername,
+    planName: user.planName || "BR30 Market Scanner",
+    subscriptionEndDate: fmtDateMail(user.subscriptionEndDate || user.trialEndDate),
+    title: "Indicator Access Rejected",
+    statusText: "STATUS : ACTION REQUIRED",
+    statusBg: "#ffcc66",
+    statusColor: "#000",
+    message: `
+      Your TradingView username could not be approved for <strong style="color:#00ff88;">BR30 Infinity Sniper Indicator</strong> access.
+      <br /><br />
+      Please contact BR30 Support with your correct TradingView username.
+    `,
+    subtitle: `
+      <p style="margin:24px 0 12px;color:#ffffff;font-size:16px;font-weight:800;">
+        What to check:
+      </p>
+      <p style="margin:0;color:#cbd5e1;font-size:15px;line-height:26px;">
+        Make sure you submitted your TradingView username, not your email address.
+      </p>
+    `,
+  });
+};
+
+module.exports = { otpTemplate, forgotPasswordTemplate, approvedTemplate, unapprovedTemplate, bulkMailTemplate, br30BaseIndicatorTemplate, indicatorApprovedTemplate, indicatorExpiredTemplate, indicatorRejectedTemplate };
