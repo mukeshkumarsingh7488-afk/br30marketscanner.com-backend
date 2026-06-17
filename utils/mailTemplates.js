@@ -190,74 +190,60 @@ const approvedTemplate = (name) => `
     <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   </head>
 
-      <body style="margin:0;padding:0;font-family:Arial,sans-serif">
-      <table width="100%" cellpadding="0" cellspacing="0" style="padding:15px">
+  <body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#ffffff;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="padding:15px;background:#ffffff;">
       <tr>
         <td align="center">
-          <table width="620" cellpadding="0" cellspacing="0" style="background: #0a0a0a; border-radius: 24px; overflow: hidden; border: 2px solid #00ff88">
+          <table align="center" width="620" cellpadding="0" cellspacing="0" style="margin:0 auto;background:#0a0a0a;border-radius:24px;overflow:hidden;border:2px solid #00ff88;">
             <tr>
               <td>
-                <img src="https://res.cloudinary.com/dw4imlekm/image/upload/v1779141465/Green_burner_qc5lon.jpg" width="100%" style="display: block" />
+                <img src="https://res.cloudinary.com/dw4imlekm/image/upload/v1779141465/Green_burner_qc5lon.jpg" width="620" style="display:block;width:100%;max-width:620px;height:auto;border:0;" />
               </td>
             </tr>
 
             <tr>
-              <td style="padding: 40px 35px; text-align: center">
-                <h1 style="margin: 0; color: #00ff88; font-size: 32px; font-weight: 900">BR30 Market Scanner</h1>
+              <td style="padding:40px 35px;text-align:center;">
+                <h1 style="margin:0;color:#00ff88;font-size:32px;font-weight:900;">BR30 Market Scanner</h1>
 
-                <p style="margin: 30px 0 10px; color: #ffffff; font-size: 18px">Hello <strong>${name}</strong>,</p>
+                <p style="margin:30px 0 10px;color:#ffffff;font-size:18px;">Hello <strong>${name}</strong>,</p>
 
-                <p style="margin: 0; color: #cbd5e1; font-size: 16px; line-height: 28px">
+                <p style="margin:0;color:#cbd5e1;font-size:16px;line-height:28px;">
                   Congratulations 🎉<br /><br />
                   Your BR30 Market Scanner account has been successfully approved.<br /><br />
                   You can now login and access all scanner features.
                 </p>
 
-                <div style="margin: 30px auto 20px; display: inline-block; background: #00ff88; color: #000; padding: 10px 22px; border-radius: 50px; font-size: 14px; font-weight: 900">✅ STATUS : APPROVED</div>
+                <div style="margin:30px auto 20px;display:inline-block;background:#00ff88;color:#000000 !important;padding:10px 22px;border-radius:50px;font-size:14px;font-weight:900;">
+                  <span style="color:#000000 !important;font-weight:900;">✅ STATUS : APPROVED</span>
+                </div>
 
-                <br />
-                <p style="margin-top: 20px; color: #94a3b8; font-size: 14px; line-height: 24px">Welcome to BR30 Market Scanner.</p>
-                <a href="https://br30scanner.vercel.app/login" target="_blank" style="display: inline-block; margin-top: 10px; background: #00ff88; color: #000; text-decoration: none; padding: 14px 30px; border-radius: 12px; font-size: 16px; font-weight: 900"> 🚀 LOGIN TO DASHBOARD </a>
+                <p style="margin-top:20px;color:#94a3b8;font-size:14px;line-height:24px;">Welcome to BR30 Market Scanner.</p>
 
+                <a href="https://br30marketscanner-com-frontade.vercel.app/login" target="_blank" style="display:inline-block;margin-top:10px;background:#00ff88;color:#000000 !important;text-decoration:none;padding:14px 30px;border-radius:12px;font-size:16px;font-weight:900;">
+                  <span style="color:#000000 !important;font-weight:900;">🚀 LOGIN TO DASHBOARD</span>
+                </a>
               </td>
             </tr>
 
             <tr>
-              <td style="padding: 25px 30px; background: #050505; border-top: 1px solid #111; text-align: center">
-                <p style="margin: 0; color: #ffffff; font-size: 15px; font-weight: 700">Regards,</p>
-
-                <p style="margin: 8px 0 20px; color: #00ff88; font-size: 18px; font-weight: 900">BR30 Support Team</p>
+              <td style="padding:25px 30px;background:#050505;border-top:1px solid #111;text-align:center;">
+                <p style="margin:0;color:#ffffff;font-size:15px;font-weight:700;">Regards,</p>
+                <p style="margin:8px 0 20px;color:#00ff88;font-size:18px;font-weight:900;">BR30 Support Team</p>
 
                 <table align="center" cellpadding="0" cellspacing="0">
                   <tr>
-                    <td style="padding: 0 6px">
-                      <a href="https://www.youtube.com/@br30traderofficial"><img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" width="24" /></a>
-                    </td>
-                    <td style="padding: 0 6px">
-                      <a href="https://www.instagram.com/br30Traderofficial"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" width="24" /></a>
-                    </td>
-                    <td style="padding: 0 6px">
-                      <a href="https://www.facebook.com/share/1DDJYGYYDf/"><img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" width="24" /></a>
-                    </td>
-                    <td style="padding: 0 6px">
-                      <a href="https://t.me/+hBAT4kWo63A4ZWY1"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111646.png" width="24" /></a>
-                    </td>
-                    <td style="padding: 0 6px">
-                      <a href="https://chat.whatsapp.com/B4t82SWBcgOIZTeQXp1wDI"><img src="https://cdn-icons-png.flaticon.com/512/733/733585.png" width="24" /></a>
-                    </td>
-                    <td style="padding: 0 6px">
-                      <a href="https://x.com/MukeshKuma48159"><img src="https://cdn-icons-png.flaticon.com/512/5969/5969020.png" width="24" /></a>
-                    </td>
-                    <td style="padding: 0 6px">
-                      <a href="https://www.threads.com/@br30traderofficial" style="color: #fff; text-decoration: none; font-size: 22px; font-weight: bold"> @ </a>
-                    </td>
-                    <td style="padding: 0 6px">
-                      <a href="https://www.linkedin.com/in/mukesh-raj-b75a65253"><img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="24" /></a>
-                    </td>
+                    <td style="padding:0 6px"><a href="https://www.youtube.com/@br30traderofficial"><img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" width="24" /></a></td>
+                    <td style="padding:0 6px"><a href="https://www.instagram.com/br30Traderofficial"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" width="24" /></a></td>
+                    <td style="padding:0 6px"><a href="https://www.facebook.com/share/1DDJYGYYDf/"><img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" width="24" /></a></td>
+                    <td style="padding:0 6px"><a href="https://t.me/+hBAT4kWo63A4ZWY1"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111646.png" width="24" /></a></td>
+                    <td style="padding:0 6px"><a href="https://chat.whatsapp.com/B4t82SWBcgOIZTeQXp1wDI"><img src="https://cdn-icons-png.flaticon.com/512/733/733585.png" width="24" /></a></td>
+                    <td style="padding:0 6px"><a href="https://x.com/MukeshKuma48159"><img src="https://cdn-icons-png.flaticon.com/512/5969/5969020.png" width="24" /></a></td>
+                    <td style="padding:0 6px"><a href="https://www.threads.com/@br30traderofficial" style="color:#fff;text-decoration:none;font-size:22px;font-weight:bold;">@</a></td>
+                    <td style="padding:0 6px"><a href="https://www.linkedin.com/in/mukesh-raj-b75a65253"><img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="24" /></a></td>
                   </tr>
                 </table>
 
-                <p style="margin-top: 18px; color: #666; font-size: 11px">© BR30 Market Scanner. All Rights Reserved.</p>
+                <p style="margin-top:18px;color:#666;font-size:11px;">© BR30 Market Scanner. All Rights Reserved.</p>
               </td>
             </tr>
           </table>
@@ -407,11 +393,6 @@ const bulkMailTemplate = (name, message) => {
                     Live scanner, alerts, heatmap, TradingView chart, BR30 Infinity Sniper and multi-market tracking ke liye dashboard regularly check karte rahiye.
                   </p>
                 </div>
-
-                <p style="margin:24px 0 0;color:#ffffff;font-size:14px;font-weight:800;">
-                  Regards,<br/>
-                  <span style="color:#00ff88;">BR30 Support Team</span>
-                </p>
               </td>
             </tr>
 
@@ -481,7 +462,7 @@ const br30BaseIndicatorTemplate = ({ name = "Trader", tradingViewUsername = "-",
     <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   </head>
 
-  <body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#ffffff;">
+  <body style="margin:0;padding:0;font-family:Arial,sans-serif;background:;">
     <table width="100%" cellpadding="0" cellspacing="0" style="padding:18px;background:#f4f4f4;">
       <tr>
         <td align="center">
@@ -503,9 +484,11 @@ const br30BaseIndicatorTemplate = ({ name = "Trader", tradingViewUsername = "-",
                   ${message}
                 </p>
 
-                <div style="margin:28px auto 18px;display:inline-block;background:${statusBg};color:${statusColor} !important;padding:10px 22px;border-radius:50px;font-size:14px;font-weight:900;">
-                  <span style="color:${statusColor} !important;">${statusText}</span>
-                </div>
+             <div style="margin:28px auto 18px;display:inline-block;background:${statusBg};padding:10px 22px;border-radius:50px;">
+             <span style="color:#000000 !important;font-size:14px;font-weight:900;text-decoration:none;">
+             ${statusText}
+             </span>
+             </div>
 
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:25px;background:#050505;border:1px solid #111;border-radius:16px;padding:18px;text-align:left;">
                   <tr>
@@ -520,13 +503,17 @@ const br30BaseIndicatorTemplate = ({ name = "Trader", tradingViewUsername = "-",
                 ${subtitle}
 
                 <div style="margin-top:28px;text-align:center;">
-                  <a href="${gmailLink}" target="_blank" style="display:inline-block;background:#00ff88;color:#000000 !important;text-decoration:none;padding:14px 24px;border-radius:12px;font-size:15px;font-weight:900;margin:6px;">
-                    <span style="color:#000000 !important;font-weight:900;">Contact Support</span>
-                  </a>
+                 <a href="${gmailLink}" target="_blank" style="display:inline-block;background:#00ff88;padding:14px 24px;border-radius:12px;text-decoration:none;margin:6px;">
+                 <span style="color:#000000 !important;font-size:15px;font-weight:900;text-decoration:none;">
+                 Contact Support
+                 </span>
+                 </a>
 
-                  <a href="${whatsappLink}" target="_blank" style="display:inline-block;background:#25D366;color:#000000 !important;text-decoration:none;padding:14px 24px;border-radius:12px;font-size:15px;font-weight:900;margin:6px;">
-                    <span style="color:#000000 !important;font-weight:900;">WhatsApp Support</span>
-                  </a>
+                <a href="${whatsappLink}" target="_blank" style="display:inline-block;background:#25D366;padding:14px 24px;border-radius:12px;text-decoration:none;margin:6px;">
+                <span style="color:#000000 !important;font-size:15px;font-weight:900;text-decoration:none;">
+                WhatsApp Support
+                </span>
+                </a>
                 </div>
 
                 <div style="margin-top:28px;padding:20px;background:#07130d;border:1px solid #00ff8844;border-radius:16px;text-align:center;">
