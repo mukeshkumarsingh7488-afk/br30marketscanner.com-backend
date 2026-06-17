@@ -719,7 +719,7 @@ exports.sendBulkMail = async (req, res) => {
 
 exports.updateIndicatorAccess = async (req, res) => {
   try {
-    const { indicatorAccess, sendMail = true } = req.body;
+    const { indicatorAccess, sendMail: shouldSendMail = true } = req.body;
 
     const allowed = ["pending", "active", "expired", "rejected"];
 
@@ -761,46 +761,31 @@ exports.updateIndicatorAccess = async (req, res) => {
       });
     }
 
-    if (sendMail) {
+    if (shouldSendMail) {
       let subject = "";
-      let message = "";
+      let html = "";
 
       if (indicatorAccess === "active") {
         subject = "BR30 Infinity Sniper Access Approved ✅";
-        message = `
-          <h2>BR30 Infinity Sniper Access Approved ✅</h2>
-          <p>Hello ${user.name},</p>
-          <p>Your BR30 Infinity Sniper indicator access is now active.</p>
-          <p><b>TradingView Username:</b> ${user.tradingViewUsername}</p>
-          <p><b>Indicator Name:</b> ${user.indicatorName}</p>
-          <p>Open TradingView → Chart → Indicators → Invite-only scripts → BR30 Infinity Sniper.</p>
-        `;
+        html = indicatorApprovedTemplate(user);
       }
 
       if (indicatorAccess === "expired") {
-        subject = "BR30 Infinity Sniper Access Expired";
-        message = `
-          <h2>BR30 Infinity Sniper Access Expired</h2>
-          <p>Hello ${user.name},</p>
-          <p>Your BR30 Infinity Sniper indicator access has been removed because your plan/trial has ended.</p>
-        `;
+        subject = "BR30 Infinity Sniper Access Removed";
+        html = indicatorExpiredTemplate(user);
       }
 
       if (indicatorAccess === "rejected") {
         subject = "BR30 Infinity Sniper Access Rejected";
-        message = `
-          <h2>BR30 Infinity Sniper Access Rejected</h2>
-          <p>Hello ${user.name},</p>
-          <p>Your TradingView username could not be approved. Please contact BR30 support.</p>
-        `;
+        html = indicatorRejectedTemplate(user);
       }
 
-      if (subject && message) {
+      if (subject && html) {
         try {
           await sendMail({
             to: user.email,
             subject,
-            html: message,
+            html,
           });
 
           user.indicatorMailSentAt = new Date();
