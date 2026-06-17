@@ -378,7 +378,6 @@ const bulkMailTemplate = (name, message) => {
   return `
 <!doctype html>
 <html>
-<body style="margin:0;padding:0;background:#05070b;font-family:Arial,Helvetica,sans-serif;">
   <div style="max-width:620px;margin:0 auto;padding:24px;">
     <div style="background:linear-gradient(135deg,#07130d,#101827);border:1px solid #1f3b31;border-radius:22px;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.45);">
       <div style="padding:26px 24px;border-bottom:1px solid #172438;text-align:center;">
@@ -395,7 +394,7 @@ const bulkMailTemplate = (name, message) => {
 
         <div style="margin-top:22px;padding:16px;border-radius:16px;background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.25);">
           <p style="margin:0;color:#00ff88;font-size:14px;font-weight:900;">BR30 Scanner Pro</p>
-          <p style="margin:6px 0 0;color:#aeb8c5;font-size:13px;line-height:1.6;">Live scanner, alerts, heatmap, TradingView popup aur multi-market tracking ke liye dashboard regularly check karte rahiye.</p>
+          <p style="margin:6px 0 0;color:#aeb8c5;font-size:13px;line-height:1.6;">Live scanner, alerts, heatmap, TradingView Chart, BR30 Infinity Sniper aur multi-market tracking ke liye dashboard regularly check karte rahiye.</p>
         </div>
 
         <p style="margin:24px 0 0;color:#ffffff;font-size:14px;font-weight:800;">Regards,<br/><span style="color:#00ff88;">BR30 Support Team</span></p>
@@ -441,7 +440,6 @@ const br30BaseIndicatorTemplate = ({ name = "Trader", tradingViewUsername = "-",
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   </head>
-    <table width="100%" cellpadding="0" cellspacing="0" style="padding:15px;background:#050505;">
       <tr>
         <td align="center">
           <table width="620" cellpadding="0" cellspacing="0" style="background:#0a0a0a;border-radius:24px;overflow:hidden;border:2px solid #00ff88;">
@@ -489,19 +487,19 @@ const br30BaseIndicatorTemplate = ({ name = "Trader", tradingViewUsername = "-",
                   </a>
                 </div>
 
-                <div style="margin-top:28px;padding:20px;background:#07130d;border:1px solid #00ff8844;border-radius:16px;">
-                  <p style="margin:0 0 10px;color:#00ff88;font-size:16px;font-weight:900;">
-                    Open Dhan Account
-                  </p>
+               <div style="margin-top:28px;padding:20px;background:#07130d;border:1px solid #00ff8844;border-radius:16px;">
+               <p style="margin:0 0 10px;color:#00ff88;font-size:16px;font-weight:900;">
+               Open Your Demat Account on Dhan
+               </p>
 
-                  <p style="margin:0 0 16px;color:#cbd5e1;font-size:14px;line-height:24px;">
-                    Use BR30 referral link to open your Dhan account.
-                  </p>
+               <p style="margin:0 0 16px;color:#cbd5e1;font-size:14px;line-height:24px;">
+               Use the official BR30 referral link to open your Trading & Investing account on Dhan.
+               </p>
 
-                  <a href="${dhanReferralLink}" target="_blank" style="display:inline-block;background:#ffffff;color:#000;text-decoration:none;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:900;">
-                    Open Dhan Account
-                  </a>
-                </div>
+               <a href="${dhanReferralLink}" target="_blank" style="display:inline-block;background:#ffffff;color:#000;text-decoration:none;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:900;">
+               Open Dhan Account
+               </a>
+               </div>
 
                 <p style="margin-top:22px;color:#94a3b8;font-size:14px;line-height:24px;">
                   BR30 Support Team is available to assist you.
