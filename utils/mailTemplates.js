@@ -462,7 +462,7 @@ const br30BaseIndicatorTemplate = ({ name = "Trader", tradingViewUsername = "-",
     <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   </head>
 
-  <body style="margin:0;padding:0;font-family:Arial,sans-serif;background:;">
+  <body style="margin:0;padding:0;font-family:Arial,sans-serif;background-color:transparent !important;">
     <table width="100%" cellpadding="0" cellspacing="0" style="padding:18px;background:#f4f4f4;">
       <tr>
         <td align="center">
