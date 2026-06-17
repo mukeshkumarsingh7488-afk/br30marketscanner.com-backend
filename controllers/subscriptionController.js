@@ -188,7 +188,7 @@ exports.createSubscriptionOrder = async (req, res) => {
       });
     }
 
-    const tvUsername = String(tradingViewUsername || "").trim();
+    const tvUsername = String(tradingViewUsername || user.tradingViewUsername || "").trim();
 
     if (!tvUsername) {
       return res.status(400).json({
