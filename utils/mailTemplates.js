@@ -411,4 +411,138 @@ const bulkMailTemplate = (name, message) => {
 </html>`;
 };
 
-module.exports = { otpTemplate, forgotPasswordTemplate, approvedTemplate, unapprovedTemplate, bulkMailTemplate };
+const br30InfinityAccessTemplate = ({ name = "Trader", tradingViewUsername = "-", planName = "BR30 Market Scanner Monthly Plan", subscriptionEndDate = "-" }) => {
+  const supportEmail = "support.br30trader@gmail.com";
+  const supportWhatsapp = "916200986380";
+  const dhanReferralLink = "https://join.dhan.co/?invite=ZUFUW59514";
+
+  const emailSubject = encodeURIComponent("BR30 Infinity Sniper Access Support");
+  const emailBody = encodeURIComponent(
+    `Hello BR30 Support Team,\n\nMy BR30 Market Scanner subscription is active.\n\nName: ${name}\nTradingView Username: ${tradingViewUsername}\nPlan: ${planName}\nValid Till: ${subscriptionEndDate}\n\nPlease activate my BR30 Infinity Sniper Indicator access.\n\nThank you.`
+  );
+
+  const gmailLink = `https://mail.google.com/mail/?view=cm&fs=1&to=${supportEmail}&su=${emailSubject}&body=${emailBody}`;
+
+  const whatsappText = encodeURIComponent(`Hello BR30 Support Team,\n\nMy BR30 Market Scanner subscription is active.\n\nName: ${name}\nTradingView Username: ${tradingViewUsername}\nPlan: ${planName}\nValid Till: ${subscriptionEndDate}\n\nPlease activate my BR30 Infinity Sniper Indicator access.`);
+
+  const whatsappLink = `https://wa.me/${supportWhatsapp}?text=${whatsappText}`;
+
+  return `
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  </head>
+
+  <body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#050505;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="padding:15px;background:#050505;">
+      <tr>
+        <td align="center">
+          <table width="620" cellpadding="0" cellspacing="0" style="background:#0a0a0a;border-radius:24px;overflow:hidden;border:2px solid #00ff88;">
+            
+            <tr>
+              <td>
+                <img src="https://res.cloudinary.com/dw4imlekm/image/upload/v1779141465/Green_burner_qc5lon.jpg" width="100%" style="display:block;" />
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:40px 35px;text-align:center;">
+                <h1 style="margin:0;color:#00ff88;font-size:30px;font-weight:900;">BR30 Market Scanner</h1>
+                <h2 style="margin:10px 0 0;color:#ffffff;font-size:22px;font-weight:800;">Subscription Activated</h2>
+
+                <p style="margin:28px 0 10px;color:#ffffff;font-size:18px;">Hello <strong>${name}</strong>,</p>
+
+                <p style="margin:0;color:#cbd5e1;font-size:16px;line-height:28px;">
+                  Your BR30 Market Scanner subscription is now active.
+                  <br />
+                  Your request for <strong style="color:#00ff88;">BR30 Infinity Sniper Indicator</strong> access has been received.
+                  <br /><br />
+                  Our support team will verify your TradingView username and activate your invite-only indicator access soon.
+                </p>
+
+                <div style="margin:28px auto 18px;display:inline-block;background:#00ff88;color:#000;padding:10px 22px;border-radius:50px;font-size:14px;font-weight:900;">
+                  STATUS : SUBSCRIPTION ACTIVE
+                </div>
+
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:25px;background:#050505;border:1px solid #111;border-radius:16px;padding:18px;text-align:left;">
+                  <tr>
+                    <td style="color:#94a3b8;font-size:14px;line-height:26px;">
+                      <p style="margin:0;"><strong style="color:#ffffff;">Plan:</strong> ${planName}</p>
+                      <p style="margin:0;"><strong style="color:#ffffff;">TradingView Username:</strong> ${tradingViewUsername}</p>
+                      <p style="margin:0;"><strong style="color:#ffffff;">Valid Till:</strong> ${subscriptionEndDate}</p>
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="margin:24px 0 12px;color:#ffffff;font-size:16px;font-weight:800;">
+                  How to use after access activation:
+                </p>
+
+                <p style="margin:0;color:#cbd5e1;font-size:15px;line-height:26px;">
+                  Open TradingView → Indicators → Invite-only Scripts → BR30 Infinity Sniper
+                </p>
+
+                <div style="margin-top:28px;">
+                  <a href="${gmailLink}" target="_blank" style="display:inline-block;background:#00ff88;color:#000;text-decoration:none;padding:14px 24px;border-radius:12px;font-size:15px;font-weight:900;margin:6px;">
+                    Contact Support
+                  </a>
+
+                  <a href="${whatsappLink}" target="_blank" style="display:inline-block;background:#25D366;color:#000;text-decoration:none;padding:14px 24px;border-radius:12px;font-size:15px;font-weight:900;margin:6px;">
+                    WhatsApp Support
+                  </a>
+                </div>
+
+                <div style="margin-top:28px;padding:20px;background:#07130d;border:1px solid #00ff8844;border-radius:16px;">
+                  <p style="margin:0 0 10px;color:#00ff88;font-size:16px;font-weight:900;">
+                    Open Dhan Account
+                  </p>
+
+                  <p style="margin:0 0 16px;color:#cbd5e1;font-size:14px;line-height:24px;">
+                    Use BR30 referral link to open your Dhan account.
+                  </p>
+
+                  <a href="${dhanReferralLink}" target="_blank" style="display:inline-block;background:#ffffff;color:#000;text-decoration:none;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:900;">
+                    Open Dhan Account
+                  </a>
+                </div>
+
+                <p style="margin-top:22px;color:#94a3b8;font-size:14px;line-height:24px;">
+                  BR30 Support Team is available to assist you.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:25px 30px;background:#050505;border-top:1px solid #111;text-align:center;">
+                <p style="margin:0;color:#ffffff;font-size:15px;font-weight:700;">Regards,</p>
+                <p style="margin:8px 0 20px;color:#00ff88;font-size:18px;font-weight:900;">BR30 Support Team</p>
+
+                <table align="center" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="padding:0 6px"><a href="https://www.youtube.com/@br30traderofficial"><img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" width="24" /></a></td>
+                    <td style="padding:0 6px"><a href="https://www.instagram.com/br30Traderofficial"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" width="24" /></a></td>
+                    <td style="padding:0 6px"><a href="https://www.facebook.com/share/1DDJYGYYDf/"><img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" width="24" /></a></td>
+                    <td style="padding:0 6px"><a href="https://t.me/+hBAT4kWo63A4ZWY1"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111646.png" width="24" /></a></td>
+                    <td style="padding:0 6px"><a href="https://chat.whatsapp.com/B4t82SWBcgOIZTeQXp1wDI"><img src="https://cdn-icons-png.flaticon.com/512/733/733585.png" width="24" /></a></td>
+                    <td style="padding:0 6px"><a href="https://x.com/MukeshKuma48159"><img src="https://cdn-icons-png.flaticon.com/512/5969/5969020.png" width="24" /></a></td>
+                    <td style="padding:0 6px"><a href="https://www.threads.com/@br30traderofficial" style="color:#fff;text-decoration:none;font-size:22px;font-weight:bold;">@</a></td>
+                    <td style="padding:0 6px"><a href="https://www.linkedin.com/in/mukesh-raj-b75a65253"><img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="24" /></a></td>
+                  </tr>
+                </table>
+
+                <p style="margin-top:18px;color:#666;font-size:11px;">© BR30 Market Scanner. All Rights Reserved.</p>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+`;
+};
+
+module.exports = { otpTemplate, forgotPasswordTemplate, approvedTemplate, unapprovedTemplate, bulkMailTemplate, br30InfinityAccessTemplate };

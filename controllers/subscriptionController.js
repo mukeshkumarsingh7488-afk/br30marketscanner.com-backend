@@ -1,13 +1,18 @@
 const User = require("../models/User");
 const Payment = require("../models/Payment");
 const { createPaytmSubscription, verifyPaytmChecksum } = require("../services/paytmService");
+const sendMail = require("../utils/mailHelper");
+const { br30InfinityAccessTemplate } = require("../utils/mailTemplates");
 
 const MONTHLY_PRICE = 2199;
 const FOUNDING_PRICE = 999;
 const FOUNDING_LIMIT = 100;
 
 const getPlanPrice = async () => {
-  const paidUsers = await User.countDocuments({ role: "user", totalPayments: { $gt: 0 } });
+  const paidUsers = await User.countDocuments({
+    role: "user",
+    totalPayments: { $gt: 0 },
+  });
 
   return {
     price: paidUsers < FOUNDING_LIMIT ? FOUNDING_PRICE : MONTHLY_PRICE,
@@ -17,13 +22,54 @@ const getPlanPrice = async () => {
   };
 };
 
+const sendInfinityAccessMails = async (user) => {
+  try {
+    await sendMail({
+      to: user.email,
+      subject: "BR30 Infinity Sniper Access Request Received",
+      html: br30InfinityAccessTemplate({
+        name: user.name,
+        tradingViewUsername: user.tradingViewUsername || "-",
+        planName: user.planName,
+        subscriptionEndDate: user.subscriptionEndDate ? new Date(user.subscriptionEndDate).toLocaleDateString("en-IN") : "-",
+      }),
+    });
+
+    if (process.env.ADMIN_EMAIL) {
+      await sendMail({
+        to: process.env.ADMIN_EMAIL,
+        subject: "New TradingView Access Request - BR30 Infinity Sniper",
+        html: `
+          <div style="font-family:Arial,sans-serif;line-height:1.6;">
+            <h2>New BR30 Infinity Sniper Access Request</h2>
+            <p><b>Name:</b> ${user.name}</p>
+            <p><b>Email:</b> ${user.email}</p>
+            <p><b>TradingView Username:</b> ${user.tradingViewUsername || "-"}</p>
+            <p><b>Plan:</b> ${user.planName}</p>
+            <p><b>Plan Price:</b> ₹${user.planPrice}</p>
+            <p><b>Valid Till:</b> ${user.subscriptionEndDate ? new Date(user.subscriptionEndDate).toLocaleDateString("en-IN") : "-"}</p>
+            <p><b>Status:</b> ${user.tradingViewAccessStatus || "pending"}</p>
+          </div>
+        `,
+      });
+    }
+  } catch (mailErr) {
+    console.log("INFINITY ACCESS MAIL ERROR =>", mailErr.message);
+  }
+};
+
 exports.getSubscriptionStatus = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select("-password -otp -resetOtp");
     if (!user) return res.status(404).json({ success: false, msg: "User not found" });
 
-    if (user.role === "admin") {
-      return res.json({ success: true, access: true, subscriptionRequired: false, user });
+    if (user.role === "admin" || user.role === "vip") {
+      return res.json({
+        success: true,
+        access: true,
+        subscriptionRequired: false,
+        user,
+      });
     }
 
     const now = new Date();
@@ -37,6 +83,7 @@ exports.getSubscriptionStatus = async (req, res) => {
     if (user.subscriptionStatus === "active" && user.subscriptionEndDate && new Date(user.subscriptionEndDate) < now) {
       user.subscriptionStatus = "expired";
       user.isSubscriptionActive = false;
+      user.tradingViewAccessStatus = "expired";
       await user.save();
     }
 
@@ -59,13 +106,26 @@ exports.getSubscriptionStatus = async (req, res) => {
 
 exports.createSubscriptionOrder = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const { tradingViewUsername } = req.body;
 
+    const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ success: false, msg: "User not found" });
 
-    if (user.role === "admin") {
-      return res.json({ success: true, msg: "Admin does not need subscription" });
+    if (user.role === "admin" || user.role === "vip") {
+      return res.json({ success: true, msg: "Admin/VIP does not need subscription" });
     }
+
+    if (!tradingViewUsername || !String(tradingViewUsername).trim()) {
+      return res.status(400).json({
+        success: false,
+        msg: "TradingView username is required for BR30 Infinity Sniper access",
+      });
+    }
+
+    user.tradingViewUsername = String(tradingViewUsername).trim();
+    user.tradingViewAccessStatus = "pending";
+    user.indicatorName = "BR30 Infinity Sniper";
+    await user.save();
 
     const pricing = await getPlanPrice();
 
@@ -95,7 +155,10 @@ exports.createSubscriptionOrder = async (req, res) => {
       status: "created",
       paymentMode: "",
       paymentDate: new Date(),
-      rawResponse: paytmRes,
+      rawResponse: {
+        paytm: paytmRes,
+        tradingViewUsername: user.tradingViewUsername,
+      },
     });
 
     res.json({
@@ -110,7 +173,10 @@ exports.createSubscriptionOrder = async (req, res) => {
     });
   } catch (error) {
     console.log("CREATE PAYTM SUBSCRIPTION ERROR =>", error.response?.data || error.message);
-    res.status(500).json({ success: false, msg: error.message || "Paytm subscription create failed" });
+    res.status(500).json({
+      success: false,
+      msg: error.message || "Paytm subscription create failed",
+    });
   }
 };
 
@@ -150,7 +216,9 @@ exports.paytmCallback = async (req, res) => {
       return res.redirect(`${process.env.FRONTEND_URL}/subscription?status=failed`);
     }
 
-    const userId = req.body.CUST_ID || req.body.custId;
+    const paymentDoc = await Payment.findOne({ orderId: ORDERID });
+
+    const userId = req.body.CUST_ID || req.body.custId || paymentDoc?.userId;
     const user = await User.findById(userId);
 
     if (!user) {
@@ -185,6 +253,10 @@ exports.paytmCallback = async (req, res) => {
     user.isSubscriptionActive = true;
     user.isFoundingMember = pricing.isFoundingMember;
 
+    user.tradingViewAccessStatus = "pending";
+    user.tradingViewAccessExpiry = nextBilling;
+    user.indicatorName = "BR30 Infinity Sniper";
+
     await user.save();
 
     await Payment.findOneAndUpdate(
@@ -208,6 +280,8 @@ exports.paytmCallback = async (req, res) => {
       },
       { upsert: true, new: true }
     );
+
+    await sendInfinityAccessMails(user);
 
     res.redirect(`${process.env.FRONTEND_URL}/?subscription=success`);
   } catch (error) {
@@ -253,7 +327,9 @@ exports.getAllPayments = async (req, res) => {
 
 exports.getUserPayments = async (req, res) => {
   try {
-    const payments = await Payment.find({ userId: req.params.userId }).sort({ createdAt: -1 });
+    const payments = await Payment.find({ userId: req.params.userId }).sort({
+      createdAt: -1,
+    });
 
     res.json({
       success: true,
