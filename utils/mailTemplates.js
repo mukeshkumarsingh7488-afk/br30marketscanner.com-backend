@@ -78,10 +78,8 @@ const otpTemplate = (name, otp) => {
                       </a>
                     </td>
 
-                    <td style="padding: 0 6px">
-                      <a href="https://x.com/MukeshKuma48159">
-                        <img src="https://cdn.simpleicons.org/x/ffffff" width="24" height="24" style="display: block; background: #000; border-radius: 50%; padding: 3px" />
-                      </a>
+                      <td style="padding: 0 6px">
+                      <a href="https://x.com/MukeshKuma48159"><img src="https://cdn-icons-png.flaticon.com/512/5969/5969020.png" width="24" /></a>
                     </td>
 
                     <td style="padding: 0 6px">
@@ -378,35 +376,77 @@ const bulkMailTemplate = (name, message) => {
   return `
 <!doctype html>
 <html>
-  <div style="max-width:620px;margin:0 auto;padding:24px;">
-    <div style="background:linear-gradient(135deg,#07130d,#101827);border:1px solid #1f3b31;border-radius:22px;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.45);">
-      <div style="padding:26px 24px;border-bottom:1px solid #172438;text-align:center;">
-        <h1 style="margin:0;color:#00ff88;font-size:28px;font-weight:900;letter-spacing:1px;">BR30 SCANNER</h1>
-        <p style="margin:8px 0 0;color:#ffd700;font-size:13px;font-weight:800;letter-spacing:1.5px;">PREMIUM MARKET ALERT DESK</p>
-      </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  </head>
 
-      <div style="padding:28px 24px;color:#ffffff;">
-        <p style="margin:0 0 14px;color:#d7e2ef;font-size:16px;font-weight:700;">Hello ${safeName},</p>
+  <body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#ffffff;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="padding:15px;background:#ffffff;">
+      <tr>
+        <td align="center">
+          <table align="center" width="620" cellpadding="0" cellspacing="0" style="background:#0a0a0a;border-radius:24px;overflow:hidden;border:2px solid #00ff88;">
+            <tr>
+              <td style="padding:26px 24px;border-bottom:1px solid #172438;text-align:center;">
+                <h1 style="margin:0;color:#00ff88;font-size:28px;font-weight:900;letter-spacing:1px;">BR30 MARKET SCANNER</h1>
+                <p style="margin:8px 0 0;color:#ffd700;font-size:13px;font-weight:800;letter-spacing:1.5px;">PREMIUM MARKET ALERT DESK</p>
+              </td>
+            </tr>
 
-        <div style="background:#0b111c;border:1px solid #1c2e44;border-radius:18px;padding:20px;color:#d7e2ef;font-size:15px;line-height:1.8;">
-          ${safeMessage}
-        </div>
+            <tr>
+              <td style="padding:28px 24px;color:#ffffff;">
+                <p style="margin:0 0 14px;color:#d7e2ef;font-size:16px;font-weight:700;">Hello ${safeName},</p>
 
-        <div style="margin-top:22px;padding:16px;border-radius:16px;background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.25);">
-          <p style="margin:0;color:#00ff88;font-size:14px;font-weight:900;">BR30 Scanner Pro</p>
-          <p style="margin:6px 0 0;color:#aeb8c5;font-size:13px;line-height:1.6;">Live scanner, alerts, heatmap, TradingView Chart, BR30 Infinity Sniper aur multi-market tracking ke liye dashboard regularly check karte rahiye.</p>
-        </div>
+                <div style="background:#0b111c;border:1px solid #1c2e44;border-radius:18px;padding:20px;color:#d7e2ef;font-size:15px;line-height:1.8;">
+                  ${safeMessage}
+                </div>
 
-        <p style="margin:24px 0 0;color:#ffffff;font-size:14px;font-weight:800;">Regards,<br/><span style="color:#00ff88;">BR30 Support Team</span></p>
-      </div>
+                <div style="margin-top:22px;padding:16px;border-radius:16px;background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.25);">
+                  <p style="margin:0;color:#00ff88;font-size:14px;font-weight:900;">BR30 Scanner Pro</p>
+                  <p style="margin:6px 0 0;color:#aeb8c5;font-size:13px;line-height:1.6;">
+                    Live scanner, alerts, heatmap, TradingView chart, BR30 Infinity Sniper and multi-market tracking ke liye dashboard regularly check karte rahiye.
+                  </p>
+                </div>
 
-      <div style="padding:18px 24px;background:#080d14;border-top:1px solid #172438;text-align:center;">
-        <p style="margin:0;color:#9ca9b7;font-size:12px;line-height:1.6;">This email was sent by BR30 Scanner Admin Desk. Please ignore if this message is not relevant to your account.</p>
-        <p style="margin:10px 0 0;color:#ffd700;font-size:11px;font-weight:900;letter-spacing:1px;">© ${new Date().getFullYear()} BR30 Scanner. All Rights Reserved.</p>
-      </div>
-    </div>
-  </div>
-</body>
+                <p style="margin:24px 0 0;color:#ffffff;font-size:14px;font-weight:800;">
+                  Regards,<br/>
+                  <span style="color:#00ff88;">BR30 Support Team</span>
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:25px 30px;background:#050505;border-top:1px solid #111;text-align:center;">
+                <p style="margin:0;color:#ffffff;font-size:15px;font-weight:700;">Regards,</p>
+                <p style="margin:8px 0 20px;color:#00ff88;font-size:18px;font-weight:900;">BR30 Support Team</p>
+
+                <table align="center" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="padding:0 6px"><a href="https://www.youtube.com/@br30traderofficial"><img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" width="24" /></a></td>
+                    <td style="padding:0 6px"><a href="https://www.instagram.com/br30Traderofficial"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" width="24" /></a></td>
+                    <td style="padding:0 6px"><a href="https://www.facebook.com/share/1DDJYGYYDf/"><img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" width="24" /></a></td>
+                    <td style="padding:0 6px"><a href="https://t.me/+hBAT4kWo63A4ZWY1"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111646.png" width="24" /></a></td>
+                    <td style="padding:0 6px"><a href="https://chat.whatsapp.com/B4t82SWBcgOIZTeQXp1wDI"><img src="https://cdn-icons-png.flaticon.com/512/733/733585.png" width="24" /></a></td>
+                    <td style="padding:0 6px"><a href="https://x.com/MukeshKuma48159"><img src="https://cdn-icons-png.flaticon.com/512/5969/5969020.png" width="24" /></a></td>
+                    <td style="padding:0 6px"><a href="https://www.threads.com/@br30traderofficial" style="color:#fff;text-decoration:none;font-size:22px;font-weight:bold;">@</a></td>
+                    <td style="padding:0 6px"><a href="https://www.linkedin.com/in/mukesh-raj-b75a65253"><img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="24" /></a></td>
+                  </tr>
+                </table>
+
+                <p style="margin-top:18px;color:#9ca9b7;font-size:12px;line-height:1.6;">
+                  This email was sent by BR30 Scanner Admin Desk. Please ignore if this message is not relevant to your account.
+                </p>
+
+                <p style="margin:10px 0 0;color:#666;font-size:11px;">
+                  © ${new Date().getFullYear()} BR30 Market Scanner. All Rights Reserved.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
 </html>`;
 };
 
@@ -440,13 +480,15 @@ const br30BaseIndicatorTemplate = ({ name = "Trader", tradingViewUsername = "-",
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   </head>
+
+  <body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#ffffff;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="padding:18px;background:#f4f4f4;">
       <tr>
         <td align="center">
-          <table width="620" cellpadding="0" cellspacing="0" style="background:#0a0a0a;border-radius:24px;overflow:hidden;border:2px solid #00ff88;">
-            
+          <table align="center" width="620" cellpadding="0" cellspacing="0" style="width:620px;max-width:620px;margin:0 auto;background:#0a0a0a;border-radius:24px;overflow:hidden;border:2px solid #00ff88;">
             <tr>
               <td>
-                <img src="https://res.cloudinary.com/dw4imlekm/image/upload/v1779141465/Green_burner_qc5lon.jpg" width="100%" style="display:block;" />
+                <img src="https://res.cloudinary.com/dw4imlekm/image/upload/v1779141465/Green_burner_qc5lon.jpg" width="620" style="display:block;width:100%;max-width:620px;height:auto;border:0;" />
               </td>
             </tr>
 
@@ -461,8 +503,8 @@ const br30BaseIndicatorTemplate = ({ name = "Trader", tradingViewUsername = "-",
                   ${message}
                 </p>
 
-                <div style="margin:28px auto 18px;display:inline-block;background:${statusBg};color:${statusColor};padding:10px 22px;border-radius:50px;font-size:14px;font-weight:900;">
-                  ${statusText}
+                <div style="margin:28px auto 18px;display:inline-block;background:${statusBg};color:${statusColor} !important;padding:10px 22px;border-radius:50px;font-size:14px;font-weight:900;">
+                  <span style="color:${statusColor} !important;">${statusText}</span>
                 </div>
 
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:25px;background:#050505;border:1px solid #111;border-radius:16px;padding:18px;text-align:left;">
@@ -477,29 +519,29 @@ const br30BaseIndicatorTemplate = ({ name = "Trader", tradingViewUsername = "-",
 
                 ${subtitle}
 
-                <div style="margin-top:28px;">
-                  <a href="${gmailLink}" target="_blank" style="display:inline-block;background:#00ff88;color:#000;text-decoration:none;padding:14px 24px;border-radius:12px;font-size:15px;font-weight:900;margin:6px;">
-                    Contact Support
+                <div style="margin-top:28px;text-align:center;">
+                  <a href="${gmailLink}" target="_blank" style="display:inline-block;background:#00ff88;color:#000000 !important;text-decoration:none;padding:14px 24px;border-radius:12px;font-size:15px;font-weight:900;margin:6px;">
+                    <span style="color:#000000 !important;font-weight:900;">Contact Support</span>
                   </a>
 
-                  <a href="${whatsappLink}" target="_blank" style="display:inline-block;background:#25D366;color:#000;text-decoration:none;padding:14px 24px;border-radius:12px;font-size:15px;font-weight:900;margin:6px;">
-                    WhatsApp Support
+                  <a href="${whatsappLink}" target="_blank" style="display:inline-block;background:#25D366;color:#000000 !important;text-decoration:none;padding:14px 24px;border-radius:12px;font-size:15px;font-weight:900;margin:6px;">
+                    <span style="color:#000000 !important;font-weight:900;">WhatsApp Support</span>
                   </a>
                 </div>
 
-               <div style="margin-top:28px;padding:20px;background:#07130d;border:1px solid #00ff8844;border-radius:16px;">
-               <p style="margin:0 0 10px;color:#00ff88;font-size:16px;font-weight:900;">
-               Open Your Demat Account on Dhan
-               </p>
+                <div style="margin-top:28px;padding:20px;background:#07130d;border:1px solid #00ff8844;border-radius:16px;text-align:center;">
+                  <p style="margin:0 0 10px;color:#00ff88;font-size:16px;font-weight:900;">
+                    Open Your Demat Account on Dhan
+                  </p>
 
-               <p style="margin:0 0 16px;color:#cbd5e1;font-size:14px;line-height:24px;">
-               Use the official BR30 referral link to open your Trading & Investing account on Dhan.
-               </p>
+                  <p style="margin:0 0 16px;color:#cbd5e1;font-size:14px;line-height:24px;">
+                    Use the official BR30 referral link to open your Trading & Investing account on Dhan.
+                  </p>
 
-               <a href="${dhanReferralLink}" target="_blank" style="display:inline-block;background:#ffffff;color:#000;text-decoration:none;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:900;">
-               Open Dhan Account
-               </a>
-               </div>
+                  <a href="${dhanReferralLink}" target="_blank" style="display:inline-block;background:#ffffff;color:#000000 !important;text-decoration:none;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:900;">
+                    <span style="color:#000000 !important;font-weight:900;">Open Dhan Account</span>
+                  </a>
+                </div>
 
                 <p style="margin-top:22px;color:#94a3b8;font-size:14px;line-height:24px;">
                   BR30 Support Team is available to assist you.
@@ -528,7 +570,6 @@ const br30BaseIndicatorTemplate = ({ name = "Trader", tradingViewUsername = "-",
                 <p style="margin-top:18px;color:#666;font-size:11px;">© BR30 Market Scanner. All Rights Reserved.</p>
               </td>
             </tr>
-
           </table>
         </td>
       </tr>
