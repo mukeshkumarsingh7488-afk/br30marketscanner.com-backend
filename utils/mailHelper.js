@@ -17,7 +17,7 @@ const sendMail = async ({ to, subject, html }) => {
         },
 
         replyTo: {
-          name: "BR30 Support",
+          name: "BR30 Support Team",
           email: "support.br30trader@gmail.com",
         },
 
