@@ -18,7 +18,28 @@ const cleanEmail = (email) =>
 
 exports.registerUser = async (req, res) => {
   try {
-    const { name, email, password, tradingViewUsername } = req.body;
+    const {
+      name,
+      email,
+      password,
+      tradingViewUsername,
+
+      acceptedLegal,
+      acceptedLegalAt,
+      acceptedLegalVersion,
+
+      acceptedTerms,
+      acceptedTermsVersion,
+
+      acceptedPrivacy,
+      acceptedPrivacyVersion,
+
+      acceptedRefund,
+      acceptedRefundVersion,
+
+      acceptedDisclaimer,
+      acceptedDisclaimerVersion,
+    } = req.body;
 
     const emailClean = cleanEmail(email);
     const tvUsername = String(tradingViewUsername || "").trim();
@@ -37,7 +58,15 @@ exports.registerUser = async (req, res) => {
       });
     }
 
+    if (acceptedLegal !== true || acceptedTerms !== true || acceptedPrivacy !== true || acceptedRefund !== true || acceptedDisclaimer !== true) {
+      return res.status(400).json({
+        success: false,
+        msg: "Please accept Terms, Privacy Policy, Refund Policy and Disclaimer",
+      });
+    }
+
     const exists = await User.findOne({ email: emailClean });
+
     if (exists) {
       return res.status(400).json({
         success: false,
@@ -60,6 +89,22 @@ exports.registerUser = async (req, res) => {
       password,
       otp,
       otpExpires: Date.now() + 10 * 60 * 1000,
+
+      acceptedLegal: true,
+      acceptedLegalAt: acceptedLegalAt ? new Date(acceptedLegalAt) : new Date(),
+      acceptedLegalVersion: acceptedLegalVersion || "BR30 Market Scanner Legal v1 - 2026",
+
+      acceptedTerms: true,
+      acceptedTermsVersion: acceptedTermsVersion || "BR30 Market Scanner Terms v1 - 2026",
+
+      acceptedPrivacy: true,
+      acceptedPrivacyVersion: acceptedPrivacyVersion || "BR30 Market Scanner Privacy v1 - 2026",
+
+      acceptedRefund: true,
+      acceptedRefundVersion: acceptedRefundVersion || "BR30 Market Scanner Refund v1 - 2026",
+
+      acceptedDisclaimer: true,
+      acceptedDisclaimerVersion: acceptedDisclaimerVersion || "BR30 Market Scanner Disclaimer v1 - 2026",
     });
 
     res.json({
@@ -68,6 +113,7 @@ exports.registerUser = async (req, res) => {
     });
   } catch (error) {
     console.log("REGISTER OTP ERROR =>", error.message);
+
     res.status(500).json({
       success: false,
       msg: error.message || "OTP mail failed",
@@ -103,6 +149,14 @@ exports.verifyOtp = async (req, res) => {
       });
     }
 
+    if (pending.acceptedLegal !== true || pending.acceptedTerms !== true || pending.acceptedPrivacy !== true || pending.acceptedRefund !== true || pending.acceptedDisclaimer !== true) {
+      pendingRegisters.delete(emailClean);
+      return res.status(400).json({
+        success: false,
+        msg: "Legal consent missing. Please register again.",
+      });
+    }
+
     const exists = await User.findOne({ email: emailClean });
     if (exists) {
       pendingRegisters.delete(emailClean);
@@ -124,7 +178,7 @@ exports.verifyOtp = async (req, res) => {
 
       isVerified: true,
       isApproved: isMasterAdmin,
-      role: isMasterAdmin ? "admin" : "user",
+      role: isMasterAdmin ? "admin" : "student",
       isBlocked: false,
 
       subscriptionStatus: isMasterAdmin ? "active" : "trial",
@@ -152,6 +206,22 @@ exports.verifyOtp = async (req, res) => {
       indicatorRejectedAt: null,
       indicatorMailSentAt: null,
       indicatorAccessBy: isMasterAdmin ? "system" : "",
+
+      acceptedLegal: true,
+      acceptedLegalAt: pending.acceptedLegalAt || now,
+      acceptedLegalVersion: pending.acceptedLegalVersion || "BR30 Market Scanner Legal v1 - 2026",
+
+      acceptedTerms: true,
+      acceptedTermsVersion: pending.acceptedTermsVersion || "BR30 Market Scanner Terms v1 - 2026",
+
+      acceptedPrivacy: true,
+      acceptedPrivacyVersion: pending.acceptedPrivacyVersion || "BR30 Market Scanner Privacy v1 - 2026",
+
+      acceptedRefund: true,
+      acceptedRefundVersion: pending.acceptedRefundVersion || "BR30 Market Scanner Refund v1 - 2026",
+
+      acceptedDisclaimer: true,
+      acceptedDisclaimerVersion: pending.acceptedDisclaimerVersion || "BR30 Market Scanner Disclaimer v1 - 2026",
     });
 
     pendingRegisters.delete(emailClean);

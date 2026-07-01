@@ -125,6 +125,65 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+
+    // =========================
+    // LEGAL CONSENT SYSTEM
+    // =========================
+
+    acceptedLegal: {
+      type: Boolean,
+      default: false,
+    },
+
+    acceptedLegalAt: {
+      type: Date,
+      default: null,
+    },
+
+    acceptedLegalVersion: {
+      type: String,
+      default: "",
+    },
+
+    acceptedTerms: {
+      type: Boolean,
+      default: false,
+    },
+
+    acceptedTermsVersion: {
+      type: String,
+      default: "",
+    },
+
+    acceptedPrivacy: {
+      type: Boolean,
+      default: false,
+    },
+
+    acceptedPrivacyVersion: {
+      type: String,
+      default: "",
+    },
+
+    acceptedRefund: {
+      type: Boolean,
+      default: false,
+    },
+
+    acceptedRefundVersion: {
+      type: String,
+      default: "",
+    },
+
+    acceptedDisclaimer: {
+      type: Boolean,
+      default: false,
+    },
+
+    acceptedDisclaimerVersion: {
+      type: String,
+      default: "",
+    },
   },
   { timestamps: true }
 );
