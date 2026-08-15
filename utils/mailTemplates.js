@@ -66,30 +66,9 @@ const otpTemplate = (name, otp) => {
                       </a>
                     </td>
 
-                    <td style="padding: 0 6px">
-                      <a href="https://t.me/+hBAT4kWo63A4ZWY1">
-                        <img src="https://cdn-icons-png.flaticon.com/512/2111/2111646.png" width="24" />
-                      </a>
-                    </td>
-
-                    <td style="padding: 0 6px">
-                      <a href="https://chat.whatsapp.com/B4t82SWBcgOIZTeQXp1wDI">
-                        <img src="https://cdn-icons-png.flaticon.com/512/733/733585.png" width="24" />
-                      </a>
-                    </td>
-
                       <td style="padding: 0 6px">
                       <a href="https://x.com/MukeshKuma48159"><img src="https://cdn-icons-png.flaticon.com/512/5969/5969020.png" width="24" /></a>
                     </td>
-
-                    <td style="padding: 0 6px">
-                      <a href="https://www.threads.com/@br30traderofficial" style="color: #fff; text-decoration: none; font-size: 22px; font-weight: bold"> @ </a>
-                    </td>
-
-                    <td style="padding: 0 6px">
-                      <a href="https://www.linkedin.com/in/mukesh-raj-b75a65253">
-                        <img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="24" />
-                      </a>
                     </td>
                   </tr>
                 </table>
@@ -163,11 +142,7 @@ const forgotPasswordTemplate = (name, otp) => `
                     <td style="padding:0 6px"><a href="https://www.youtube.com/@br30traderofficial"><img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" width="24" /></a></td>
                     <td style="padding:0 6px"><a href="https://www.instagram.com/br30Traderofficial"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" width="24" /></a></td>
                     <td style="padding:0 6px"><a href="https://www.facebook.com/share/1DDJYGYYDf/"><img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" width="24" /></a></td>
-                    <td style="padding:0 6px"><a href="https://t.me/+hBAT4kWo63A4ZWY1"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111646.png" width="24" /></a></td>
-                    <td style="padding:0 6px"><a href="https://chat.whatsapp.com/B4t82SWBcgOIZTeQXp1wDI"><img src="https://cdn-icons-png.flaticon.com/512/733/733585.png" width="24" /></a></td>
                     <td style="padding:0 6px"><a href="https://x.com/MukeshKuma48159"><img src="https://cdn-icons-png.flaticon.com/512/5969/5969020.png" width="24" /></a></td>
-                    <td style="padding:0 6px"><a href="https://www.threads.com/@br30traderofficial" style="color:#fff;text-decoration:none;font-size:22px;font-weight:bold">@</a></td>
-                    <td style="padding:0 6px"><a href="https://www.linkedin.com/in/mukesh-raj-b75a65253"><img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="24" /></a></td>
                   </tr>
                 </table>
 
@@ -235,11 +210,7 @@ const approvedTemplate = (name) => `
                     <td style="padding:0 6px"><a href="https://www.youtube.com/@br30traderofficial"><img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" width="24" /></a></td>
                     <td style="padding:0 6px"><a href="https://www.instagram.com/br30Traderofficial"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" width="24" /></a></td>
                     <td style="padding:0 6px"><a href="https://www.facebook.com/share/1DDJYGYYDf/"><img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" width="24" /></a></td>
-                    <td style="padding:0 6px"><a href="https://t.me/+hBAT4kWo63A4ZWY1"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111646.png" width="24" /></a></td>
-                    <td style="padding:0 6px"><a href="https://chat.whatsapp.com/B4t82SWBcgOIZTeQXp1wDI"><img src="https://cdn-icons-png.flaticon.com/512/733/733585.png" width="24" /></a></td>
                     <td style="padding:0 6px"><a href="https://x.com/MukeshKuma48159"><img src="https://cdn-icons-png.flaticon.com/512/5969/5969020.png" width="24" /></a></td>
-                    <td style="padding:0 6px"><a href="https://www.threads.com/@br30traderofficial" style="color:#fff;text-decoration:none;font-size:22px;font-weight:bold;">@</a></td>
-                    <td style="padding:0 6px"><a href="https://www.linkedin.com/in/mukesh-raj-b75a65253"><img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="24" /></a></td>
                   </tr>
                 </table>
 
@@ -323,23 +294,7 @@ const unapprovedTemplate = (name) => `
                     </td>
 
                     <td style="padding: 0 6px">
-                      <a href="https://t.me/+hBAT4kWo63A4ZWY1"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111646.png" width="24" /></a>
-                    </td>
-
-                    <td style="padding: 0 6px">
-                      <a href="https://chat.whatsapp.com/B4t82SWBcgOIZTeQXp1wDI"><img src="https://cdn-icons-png.flaticon.com/512/733/733585.png" width="24" /></a>
-                    </td>
-
-                    <td style="padding: 0 6px">
                       <a href="https://x.com/MukeshKuma48159"><img src="https://cdn-icons-png.flaticon.com/512/5969/5969020.png" width="24" /></a>
-                    </td>
-
-                    <td style="padding: 0 6px">
-                      <a href="https://www.threads.com/@br30traderofficial" style="color: #fff; text-decoration: none; font-size: 22px; font-weight: bold">@</a>
-                    </td>
-
-                    <td style="padding: 0 6px">
-                      <a href="https://www.linkedin.com/in/mukesh-raj-b75a65253"><img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="24" /></a>
                     </td>
                   </tr>
                 </table>
@@ -406,11 +361,7 @@ const bulkMailTemplate = (name, message) => {
                     <td style="padding:0 6px"><a href="https://www.youtube.com/@br30traderofficial"><img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" width="24" /></a></td>
                     <td style="padding:0 6px"><a href="https://www.instagram.com/br30Traderofficial"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" width="24" /></a></td>
                     <td style="padding:0 6px"><a href="https://www.facebook.com/share/1DDJYGYYDf/"><img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" width="24" /></a></td>
-                    <td style="padding:0 6px"><a href="https://t.me/+hBAT4kWo63A4ZWY1"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111646.png" width="24" /></a></td>
-                    <td style="padding:0 6px"><a href="https://chat.whatsapp.com/B4t82SWBcgOIZTeQXp1wDI"><img src="https://cdn-icons-png.flaticon.com/512/733/733585.png" width="24" /></a></td>
                     <td style="padding:0 6px"><a href="https://x.com/MukeshKuma48159"><img src="https://cdn-icons-png.flaticon.com/512/5969/5969020.png" width="24" /></a></td>
-                    <td style="padding:0 6px"><a href="https://www.threads.com/@br30traderofficial" style="color:#fff;text-decoration:none;font-size:22px;font-weight:bold;">@</a></td>
-                    <td style="padding:0 6px"><a href="https://www.linkedin.com/in/mukesh-raj-b75a65253"><img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="24" /></a></td>
                   </tr>
                 </table>
 
@@ -546,11 +497,7 @@ const br30BaseIndicatorTemplate = ({ name = "Trader", tradingViewUsername = "-",
                     <td style="padding:0 6px"><a href="https://www.youtube.com/@br30traderofficial"><img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" width="24" /></a></td>
                     <td style="padding:0 6px"><a href="https://www.instagram.com/br30Traderofficial"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" width="24" /></a></td>
                     <td style="padding:0 6px"><a href="https://www.facebook.com/share/1DDJYGYYDf/"><img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" width="24" /></a></td>
-                    <td style="padding:0 6px"><a href="https://t.me/+hBAT4kWo63A4ZWY1"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111646.png" width="24" /></a></td>
-                    <td style="padding:0 6px"><a href="https://chat.whatsapp.com/B4t82SWBcgOIZTeQXp1wDI"><img src="https://cdn-icons-png.flaticon.com/512/733/733585.png" width="24" /></a></td>
                     <td style="padding:0 6px"><a href="https://x.com/MukeshKuma48159"><img src="https://cdn-icons-png.flaticon.com/512/5969/5969020.png" width="24" /></a></td>
-                    <td style="padding:0 6px"><a href="https://www.threads.com/@br30traderofficial" style="color:#fff;text-decoration:none;font-size:22px;font-weight:bold;">@</a></td>
-                    <td style="padding:0 6px"><a href="https://www.linkedin.com/in/mukesh-raj-b75a65253"><img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" width="24" /></a></td>
                   </tr>
                 </table>
 
