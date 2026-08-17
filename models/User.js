@@ -13,7 +13,7 @@ const userSchema = new mongoose.Schema(
     resetOtpExpires: Date,
 
     isVerified: { type: Boolean, default: false },
-    isApproved: { type: Boolean, default: false },
+    isApproved: { type: Boolean, default: true },
 
     role: {
       type: String,
